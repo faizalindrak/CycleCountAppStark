@@ -11,10 +11,19 @@ BEGIN;
 
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
+DECLARE
+  user_role text;
 BEGIN
-  RETURN auth.jwt() ->> 'role' = 'admin' OR
-         auth.jwt() -> 'user_metadata' ->> 'role' = 'admin' OR
-         auth.jwt() -> 'app_metadata' ->> 'role' = 'admin';
+  -- First try JWT claims
+  IF auth.jwt() ->> 'role' = 'admin' OR
+     auth.jwt() -> 'user_metadata' ->> 'role' = 'admin' OR
+     auth.jwt() -> 'app_metadata' ->> 'role' = 'admin' THEN
+    RETURN true;
+  END IF;
+
+  -- Fallback to profiles table query
+  SELECT role INTO user_role FROM profiles WHERE id = auth.uid();
+  RETURN user_role = 'admin';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

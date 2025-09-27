@@ -593,6 +593,10 @@ const CategoriesManager = () => {
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showEditor, setShowEditor] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [showLocationEditor, setShowLocationEditor] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(null);
 
   useEffect(() => {
     fetchCategories();
@@ -649,6 +653,11 @@ const CategoriesManager = () => {
     }
   };
 
+  const handleEditCategory = (category) => {
+    setEditingCategory(category);
+    setShowEditor(true);
+  };
+
   const handleDeleteCategory = async (categoryId) => {
     try {
       const { error } = await supabase
@@ -679,6 +688,11 @@ const CategoriesManager = () => {
       console.error('Error creating location:', err);
       throw err;
     }
+  };
+
+  const handleEditLocation = (location) => {
+    setEditingLocation(location);
+    setShowLocationEditor(true);
   };
 
   const handleDeleteLocation = async (locationId) => {
@@ -718,12 +732,22 @@ const CategoriesManager = () => {
           <div key={category.id} className="bg-white p-4 rounded-lg shadow">
             <div className="flex justify-between items-center border-b pb-2 mb-3">
               <h4 className="font-bold text-gray-800">{category.name}</h4>
-              <button
-                onClick={() => handleDeleteCategory(category.id)}
-                className="text-red-500 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleEditCategory(category)}
+                  className="text-blue-500 hover:text-blue-700"
+                  title="Edit Category"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDeleteCategory(category.id)}
+                  className="text-red-500 hover:text-red-700"
+                  title="Delete Category"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             <ul className="space-y-2">
               {locations
@@ -731,12 +755,22 @@ const CategoriesManager = () => {
                 .map(loc => (
                   <li key={loc.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
                     <span className="text-gray-700">{loc.name}</span>
-                    <button
-                      onClick={() => handleDeleteLocation(loc.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEditLocation(loc)}
+                        className="text-blue-500 hover:text-blue-700"
+                        title="Edit Location"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLocation(loc.id)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Delete Location"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </li>
                 ))}
               {locations.filter(loc => loc.category_id === category.id).length === 0 && (
@@ -746,6 +780,23 @@ const CategoriesManager = () => {
           </div>
         ))}
       </div>
+
+      {showEditor && (
+        <CategoryEditor
+          category={editingCategory}
+          onClose={() => { setShowEditor(false); setEditingCategory(null); }}
+          onSave={() => { fetchCategories(); setShowEditor(false); setEditingCategory(null); }}
+        />
+      )}
+
+      {showLocationEditor && (
+        <LocationEditor
+          location={editingLocation}
+          categories={categories}
+          onClose={() => { setShowLocationEditor(false); setEditingLocation(null); }}
+          onSave={() => { fetchLocations(); setShowLocationEditor(false); setEditingLocation(null); }}
+        />
+      )}
     </div>
   );
 };
@@ -832,20 +883,132 @@ const LocationForm = ({ categories, onSubmit }) => {
 
 // Placeholder components for editors
 const SessionEditor = ({ session, onClose, onSave }) => {
-  // Implementation would be similar to the original but with Supabase
+  const { user } = useAuth();
+  const [formData, setFormData] = useState({
+    name: session?.name || '',
+    status: session?.status || 'draft'
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const sessionData = {
+        name: formData.name,
+        status: formData.status
+      };
+
+      if (session) {
+        // Update
+        const { error } = await supabase
+          .from('sessions')
+          .update(sessionData)
+          .eq('id', session.id);
+        if (error) throw error;
+      } else {
+        // Create
+        const { error } = await supabase
+          .from('sessions')
+          .insert([{
+            ...sessionData,
+            type: 'inventory',
+            created_by: user.id
+          }]);
+        if (error) throw error;
+      }
+
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Error saving session:', err);
+      setError(err.message || 'Failed to save session');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-3xl h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg w-full max-w-md flex flex-col">
         <div className="p-4 border-b flex justify-between items-center">
           <h3 className="text-xl font-bold">
             {session ? 'Edit Session' : 'Create New Session'}
           </h3>
-          <button onClick={onClose}>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X className="h-6 w-6" />
           </button>
         </div>
         <div className="p-6">
-          <p>Session editor implementation would go here...</p>
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Session Name *
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status *
+              </label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
+              <p><strong>Note:</strong> User assignments and item selections for this session are managed separately after creation.</p>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -853,56 +1016,535 @@ const SessionEditor = ({ session, onClose, onSave }) => {
 };
 
 const ItemEditor = ({ item, categories, onClose, onSave }) => {
-  // Implementation would be similar to the original but with Supabase
+  const { user } = useAuth();
+  const [formData, setFormData] = useState({
+    sku: item?.sku || '',
+    item_code: item?.item_code || '',
+    item_name: item?.item_name || '',
+    category: item?.category || '',
+    uom: item?.uom || '',
+    tags: item?.tags?.join(', ') || ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const itemData = {
+        sku: formData.sku,
+        item_code: formData.item_code,
+        item_name: formData.item_name,
+        category: formData.category,
+        uom: formData.uom,
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
+      };
+
+      if (item) {
+        // Update
+        const { error } = await supabase
+          .from('items')
+          .update(itemData)
+          .eq('id', item.id);
+        if (error) throw error;
+      } else {
+        // Create
+        const { error } = await supabase
+          .from('items')
+          .insert([{ ...itemData, created_by: user.id }]);
+        if (error) throw error;
+      }
+
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Error saving item:', err);
+      setError(err.message || 'Failed to save item');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white p-6 rounded-lg w-full max-w-md">
         <h3 className="text-lg font-bold mb-4">
           {item ? 'Edit Item' : 'Add New Item'}
         </h3>
-        <p>Item editor implementation would go here...</p>
-        <div className="flex justify-end space-x-2 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Save
-          </button>
-        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              SKU *
+            </label>
+            <input
+              type="text"
+              name="sku"
+              value={formData.sku}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Item Code *
+            </label>
+            <input
+              type="text"
+              name="item_code"
+              value={formData.item_code}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Item Name *
+            </label>
+            <input
+              type="text"
+              name="item_name"
+              value={formData.item_name}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Category *
+            </label>
+            <select
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select Category</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.name}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              UOM *
+            </label>
+            <input
+              type="text"
+              name="uom"
+              value={formData.uom}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tags (comma-separated)
+            </label>
+            <input
+              type="text"
+              name="tags"
+              value={formData.tags}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="tag1, tag2, tag3"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 };
 
 const UserEditor = ({ user, onClose, onSave }) => {
-  // Implementation would be similar to the original but with Supabase
+  const [formData, setFormData] = useState({
+    name: user?.name || '',
+    username: user?.username || '',
+    role: user?.role || 'counter'
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          name: formData.name,
+          username: formData.username,
+          role: formData.role
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Error updating user:', err);
+      setError(err.message || 'Failed to update user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  if (!user) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white p-6 rounded-lg w-full max-w-md">
+          <h3 className="text-lg font-bold mb-4">Add New User</h3>
+          <p className="text-gray-600 mb-4">
+            User creation is handled through the signup process. Only existing users can be edited.
+          </p>
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white p-6 rounded-lg w-full max-w-md">
-        <h3 className="text-lg font-bold mb-4">
-          {user ? 'Edit User' : 'Add New User'}
-        </h3>
-        <p>User editor implementation would go here...</p>
-        <div className="flex justify-end space-x-2 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Save
-          </button>
-        </div>
+        <h3 className="text-lg font-bold mb-4">Edit User</h3>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name *
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Username *
+            </label>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Role *
+            </label>
+            <select
+              name="role"
+              value={formData.role}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="counter">Counter</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const CategoryEditor = ({ category, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: category?.name || '',
+    description: category?.description || ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      if (category) {
+        // Update
+        const { error } = await supabase
+          .from('categories')
+          .update(formData)
+          .eq('id', category.id);
+        if (error) throw error;
+      } else {
+        // Create - but handled by CategoryForm
+        throw new Error('Create not implemented here');
+      }
+
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Error saving category:', err);
+      setError(err.message || 'Failed to save category');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-6 rounded-lg w-full max-w-md">
+        <h3 className="text-lg font-bold mb-4">Edit Category</h3>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name *
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const LocationEditor = ({ location, categories, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: location?.name || '',
+    category_id: location?.category_id || ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      if (location) {
+        // Update
+        const { error } = await supabase
+          .from('locations')
+          .update(formData)
+          .eq('id', location.id);
+        if (error) throw error;
+      } else {
+        // Create - but handled by LocationForm
+        throw new Error('Create not implemented here');
+      }
+
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Error saving location:', err);
+      setError(err.message || 'Failed to save location');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-6 rounded-lg w-full max-w-md">
+        <h3 className="text-lg font-bold mb-4">Edit Location</h3>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name *
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Category *
+            </label>
+            <select
+              name="category_id"
+              value={formData.category_id}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select Category</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
