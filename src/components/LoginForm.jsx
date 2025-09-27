@@ -183,14 +183,6 @@ const LoginForm = () => {
               : "Don't have an account? Sign up"}
           </button>
         </div>
-
-        {!isSignUp && (
-          <div className="mt-4 p-3 bg-gray-50 rounded text-sm">
-            <p className="font-semibold text-gray-700">Demo Information:</p>
-            <p className="text-gray-600">Use any email/password to sign up</p>
-            <p className="text-gray-600">First user to sign up should be made admin in the profiles table</p>
-          </div>
-        )}
       </div>
     </div>
   );

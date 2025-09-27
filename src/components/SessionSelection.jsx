@@ -44,7 +44,7 @@ const SessionSelection = ({ onSessionSelect }) => {
         query = query.eq('session_users.user_id', user.id);
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data, error } = await query.order('created_date', { ascending: false });
 
       if (error) throw error;
 

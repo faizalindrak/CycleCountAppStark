@@ -122,14 +122,37 @@ const SessionsManager = () => {
         .select(`
           *,
           session_users (
-            profiles (
-              id,
-              name,
-              username
-            )
+            user_id
           )
         `)
-        .order('created_at', { ascending: false });
+        .order('created_date', { ascending: false });
+
+      if (data) {
+        // Fetch profiles for all unique user_ids
+        const userIds = [...new Set(data.flatMap(session =>
+          session.session_users?.map(su => su.user_id) || []
+        ))];
+
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, name, username')
+            .in('id', userIds);
+
+          // Create a map for quick lookup
+          const profileMap = {};
+          profiles?.forEach(profile => {
+            profileMap[profile.id] = profile;
+          });
+
+          // Attach profiles to session_users
+          data.forEach(session => {
+            session.session_users?.forEach(su => {
+              su.profiles = profileMap[su.user_id];
+            });
+          });
+        }
+      }
 
       if (error) throw error;
       setSessions(data || []);

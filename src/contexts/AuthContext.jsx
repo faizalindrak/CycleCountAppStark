@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, getCurrentUserProfile, isAdmin } from '../lib/supabase';
+import { supabase, getCurrentUserProfile } from '../lib/supabase';
 
 const AuthContext = createContext({});
 
@@ -131,7 +131,7 @@ export const AuthProvider = ({ children }) => {
     signUp,
     signOut,
     updateProfile,
-    isAdmin: user ? isAdmin(user) : false,
+    isAdmin: profile?.role === 'admin',
     isAuthenticated: !!user,
   };
 

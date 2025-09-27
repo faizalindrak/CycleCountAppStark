@@ -29,11 +29,6 @@ export const handleSupabaseError = (error) => {
   throw error;
 };
 
-// Helper function to check if user is admin
-export const isAdmin = (user) => {
-  return user?.user_metadata?.role === 'admin' ||
-         user?.app_metadata?.role === 'admin';
-};
 
 // Helper function to get current user profile
 export const getCurrentUserProfile = async () => {
