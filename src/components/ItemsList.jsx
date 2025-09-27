@@ -254,39 +254,6 @@ const ItemsList = ({ session, onBack }) => {
     }
   };
 
-  const exportReport = async () => {
-    try {
-      const csvContent = "data:text/csv;charset=utf-8,Session,SKU,Item Name,Location,Counted Qty,Timestamp\n";
-
-      const reportData = items.map(item => {
-        const itemCounts = counts[item.id] || [];
-        return itemCounts.map(count => ({
-          sessionName: session.name,
-          sku: item.sku,
-          itemName: item.item_name,
-          location: count.location,
-          quantity: count.countedQty,
-          timestamp: new Date(count.timestamp).toLocaleString()
-        }));
-      }).flat();
-
-      const csvRows = reportData.map(row =>
-        `${row.sessionName},"${row.sku}","${row.itemName}",${row.location},${row.quantity},"${row.timestamp}"`
-      ).join('\n');
-
-      const finalContent = csvContent + csvRows;
-
-      const encodedUri = encodeURI(finalContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `${session.name}_report.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error('Error exporting report:', err);
-    }
-  };
 
   if (loading) {
     return (
@@ -343,13 +310,6 @@ const ItemsList = ({ session, onBack }) => {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <button
-                onClick={exportReport}
-                className="text-blue-600 hover:text-blue-800 p-2"
-                title="Export Report"
-              >
-                <Download className="h-5 w-5" />
-              </button>
             </div>
           </div>
         </div>

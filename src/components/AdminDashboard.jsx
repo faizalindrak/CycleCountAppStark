@@ -16,7 +16,8 @@ import {
   AlertCircle,
   Calendar,
   UserPlus,
-  UserMinus
+  UserMinus,
+  Download
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -209,6 +210,97 @@ const SessionsManager = () => {
     setShowItemSelection(true);
   };
 
+  const formatDate = (date) => {
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+  };
+
+  const exportReport = async (session) => {
+    try {
+      // Fetch session items with counts
+      const { data: sessionItems, error: sessionItemsError } = await supabase
+        .from('session_items')
+        .select(`
+          items (
+            id,
+            sku,
+            item_name
+          )
+        `)
+        .eq('session_id', session.id);
+
+      if (sessionItemsError) throw sessionItemsError;
+
+      const itemIds = sessionItems.map(si => si.items.id);
+
+      // Fetch counts for this session
+      const { data: countsData, error: countsError } = await supabase
+        .from('counts')
+        .select(`
+          *,
+          items (
+            sku,
+            item_name
+          ),
+          locations (
+            name
+          )
+        `)
+        .eq('session_id', session.id);
+
+      if (countsError) throw countsError;
+
+      // Fetch user profiles
+      const userIds = [...new Set(countsData.map(c => c.user_id))];
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      const profileMap = {};
+      profilesData?.forEach(profile => {
+        profileMap[profile.id] = profile.name;
+      });
+
+      const csvContent = "data:text/csv;charset=utf-8,Session,SKU,Item Name,Location,Counted Qty,User,Timestamp\n";
+
+      const reportData = countsData.map(count => ({
+        sessionName: session.name,
+        sku: count.items?.sku || '',
+        itemName: count.items?.item_name || '',
+        location: count.locations?.name || '',
+        quantity: count.counted_qty,
+        userName: profileMap[count.user_id] || '',
+        timestamp: formatDate(count.timestamp)
+      }));
+
+      const csvRows = reportData.map(row =>
+        `${row.sessionName},"${row.sku}","${row.itemName}",${row.location},${row.quantity},"${row.userName}","${row.timestamp}"`
+      ).join('\n');
+
+      const finalContent = csvContent + csvRows;
+
+      const encodedUri = encodeURI(finalContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `${session.name}_report.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Error exporting report:', err);
+      alert('Error exporting report: ' + err.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -283,6 +375,13 @@ const SessionsManager = () => {
                     <Edit className="h-5 w-5" />
                   </button>
                   <button
+                    onClick={() => exportReport(session)}
+                    className="text-green-600 hover:text-green-800 p-2"
+                    title="Export Report"
+                  >
+                    <Download className="h-5 w-5" />
+                  </button>
+                  <button
                     onClick={() => handleDeleteSession(session.id)}
                     className="text-red-600 hover:text-red-800 p-2"
                     title="Delete Session"
@@ -336,6 +435,10 @@ const ItemsManager = () => {
   const [loading, setLoading] = useState(true);
   const [showEditor, setShowEditor] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkError, setBulkError] = useState('');
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
   useEffect(() => {
     fetchItems();
@@ -401,6 +504,97 @@ const ItemsManager = () => {
     }
   };
 
+  const downloadTemplate = () => {
+    const csvContent = "data:text/csv;charset=utf-8,SKU,Item Code,Item Name,Category,UOM,Tags\n";
+    const sampleRow = "SAMPLE001,SAMPLE001,Sample Item,Electronics,Pcs,tag1;tag2\n";
+    const finalContent = csvContent + sampleRow;
+
+    const encodedUri = encodeURI(finalContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "items_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleBulkUpload = async () => {
+    if (!bulkFile) {
+      setBulkError('Please select a CSV file');
+      return;
+    }
+
+    setBulkUploading(true);
+    setBulkError('');
+
+    try {
+      const text = await bulkFile.text();
+      const rows = text.split('\n').filter(row => row.trim());
+      const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
+
+      // Expected headers: SKU,Item Code,Item Name,Category,UOM,Tags
+      const expectedHeaders = ['SKU', 'Item Code', 'Item Name', 'Category', 'UOM', 'Tags'];
+      const headerMatch = expectedHeaders.every(h => headers.includes(h));
+
+      if (!headerMatch) {
+        throw new Error('CSV must have headers: SKU, Item Code, Item Name, Category, UOM, Tags');
+      }
+
+      const dataRows = rows.slice(1);
+      const itemsToInsert = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const cols = row.split(',').map(col => col.trim().replace(/"/g, ''));
+
+        if (cols.length !== 6) {
+          throw new Error(`Row ${i + 2}: Invalid number of columns`);
+        }
+
+        const [sku, itemCode, itemName, category, uom, tags] = cols;
+
+        if (!sku || !itemCode || !itemName || !category || !uom) {
+          throw new Error(`Row ${i + 2}: Required fields missing`);
+        }
+
+        // Check if category exists
+        const categoryExists = categories.some(cat => cat.name === category);
+        if (!categoryExists) {
+          throw new Error(`Row ${i + 2}: Category "${category}" does not exist`);
+        }
+
+        itemsToInsert.push({
+          sku,
+          item_code: itemCode,
+          item_name: itemName,
+          category,
+          uom,
+          tags: tags ? tags.split(';').map(tag => tag.trim()).filter(tag => tag) : []
+        });
+      }
+
+      if (itemsToInsert.length === 0) {
+        throw new Error('No valid items to upload');
+      }
+
+      const { error } = await supabase
+        .from('items')
+        .insert(itemsToInsert);
+
+      if (error) throw error;
+
+      setBulkFile(null);
+      setShowBulkModal(false);
+      setBulkError('');
+      await fetchItems();
+      alert(`Successfully uploaded ${itemsToInsert.length} items`);
+    } catch (err) {
+      setBulkError(err.message);
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -413,14 +607,24 @@ const ItemsManager = () => {
     <div className="bg-white p-4 rounded-lg shadow">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-semibold">Manage Items</h3>
-        <button
-          onClick={handleCreateItem}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Item</span>
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleCreateItem}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Item</span>
+          </button>
+          <button
+            onClick={() => setShowBulkModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center space-x-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Bulk Add</span>
+          </button>
+        </div>
       </div>
+
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -482,6 +686,75 @@ const ItemsManager = () => {
           </tbody>
         </table>
       </div>
+
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold">Bulk Upload Items</h3>
+              <button onClick={() => setShowBulkModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-sm text-gray-600">
+                  Upload a CSV file with columns: SKU, Item Code, Item Name, Category, UOM, Tags (multiple tags separated by semicolons)
+                </p>
+                <button
+                  onClick={downloadTemplate}
+                  className="text-blue-600 hover:text-blue-800 text-sm underline"
+                >
+                  Download Template
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    CSV File
+                  </label>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setBulkFile(e.target.files[0])}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {bulkError && (
+                  <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    {bulkError}
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end space-x-2 mt-6">
+                <button
+                  onClick={() => {
+                    setShowBulkModal(false);
+                    setBulkFile(null);
+                    setBulkError('');
+                  }}
+                  className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+                  disabled={bulkUploading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkUpload}
+                  disabled={!bulkFile || bulkUploading}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {bulkUploading ? (
+                    <div className="spinner w-4 h-4"></div>
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  <span>{bulkUploading ? 'Uploading...' : 'Upload'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showEditor && (
         <ItemEditor
