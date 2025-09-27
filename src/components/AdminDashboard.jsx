@@ -13,7 +13,8 @@ import {
   Save,
   X,
   ChevronDown,
-  AlertCircle
+  AlertCircle,
+  Calendar
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
