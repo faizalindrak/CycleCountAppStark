@@ -42,6 +42,29 @@ export const getCurrentUserProfile = async () => {
     .single();
 
   if (error) {
+    // If profile doesn't exist, try to create it from user metadata
+    if (error.code === 'PGRST116') { // No rows returned
+      const userData = user.user_metadata;
+      if (userData && userData.name && userData.username) {
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: user.id,
+            name: userData.name,
+            username: userData.username,
+            role: userData.role || 'counter'
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+          return null;
+        }
+
+        return newProfile;
+      }
+    }
     console.error('Error fetching user profile:', error);
     return null;
   }

@@ -22,13 +22,21 @@ export const AuthProvider = ({ children }) => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          const userProfile = await getCurrentUserProfile();
           setUser(session.user);
-          setProfile(userProfile);
+          setProfile(null); // initially null
+          setLoading(false);
+
+          // Fetch profile asynchronously
+          getCurrentUserProfile().then(userProfile => {
+            setProfile(userProfile);
+          }).catch(error => {
+            console.error('Error fetching user profile:', error);
+          });
+        } else {
+          setLoading(false);
         }
       } catch (error) {
         console.error('Error getting initial session:', error);
-      } finally {
         setLoading(false);
       }
     };
@@ -41,14 +49,21 @@ export const AuthProvider = ({ children }) => {
         console.log('Auth state changed:', event, session?.user?.id);
 
         if (session?.user) {
-          const userProfile = await getCurrentUserProfile();
           setUser(session.user);
-          setProfile(userProfile);
+          setProfile(null); // initially null
+          setLoading(false);
+
+          // Fetch profile asynchronously
+          getCurrentUserProfile().then(userProfile => {
+            setProfile(userProfile);
+          }).catch(error => {
+            console.error('Error fetching user profile:', error);
+          });
         } else {
           setUser(null);
           setProfile(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -131,7 +146,7 @@ export const AuthProvider = ({ children }) => {
     signUp,
     signOut,
     updateProfile,
-    isAdmin: profile?.role === 'admin',
+    isAdmin: profile?.role === 'admin' || user?.user_metadata?.role === 'admin',
     isAuthenticated: !!user,
   };
 

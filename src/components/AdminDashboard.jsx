@@ -14,7 +14,9 @@ import {
   X,
   ChevronDown,
   AlertCircle,
-  Calendar
+  Calendar,
+  UserPlus,
+  UserMinus
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -110,6 +112,10 @@ const SessionsManager = () => {
   const [loading, setLoading] = useState(true);
   const [showEditor, setShowEditor] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
+  const [showUserAssignment, setShowUserAssignment] = useState(false);
+  const [showItemSelection, setShowItemSelection] = useState(false);
+  const [selectedSessionForAssignment, setSelectedSessionForAssignment] = useState(null);
+  const [selectedSessionForItems, setSelectedSessionForItems] = useState(null);
 
   useEffect(() => {
     fetchSessions();
@@ -193,6 +199,16 @@ const SessionsManager = () => {
     }
   };
 
+  const handleManageUsers = (session) => {
+    setSelectedSessionForAssignment(session);
+    setShowUserAssignment(true);
+  };
+
+  const handleManageItems = (session) => {
+    setSelectedSessionForItems(session);
+    setShowItemSelection(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -246,6 +262,20 @@ const SessionsManager = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
+                    onClick={() => handleManageUsers(session)}
+                    className="text-blue-600 hover:text-blue-800 p-2"
+                    title="Manage Users"
+                  >
+                    <Users className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => handleManageItems(session)}
+                    className="text-green-600 hover:text-green-800 p-2"
+                    title="Manage Items"
+                  >
+                    <Package className="h-5 w-5" />
+                  </button>
+                  <button
                     onClick={() => handleEditSession(session)}
                     className="text-indigo-600 hover:text-indigo-800 p-2"
                     title="Edit Session"
@@ -270,6 +300,28 @@ const SessionsManager = () => {
         <SessionEditor
           session={editingSession}
           onClose={() => setShowEditor(false)}
+          onSave={fetchSessions}
+        />
+      )}
+
+      {showUserAssignment && (
+        <UserAssignmentModal
+          session={selectedSessionForAssignment}
+          onClose={() => {
+            setShowUserAssignment(false);
+            setSelectedSessionForAssignment(null);
+          }}
+          onSave={fetchSessions}
+        />
+      )}
+
+      {showItemSelection && (
+        <ItemSelectionModal
+          session={selectedSessionForItems}
+          onClose={() => {
+            setShowItemSelection(false);
+            setSelectedSessionForItems(null);
+          }}
           onSave={fetchSessions}
         />
       )}
@@ -878,6 +930,410 @@ const LocationForm = ({ categories, onSubmit }) => {
           <span>Add Location</span>
         </button>
       </form>
+    </div>
+  );
+};
+
+// User Assignment Modal Component
+const UserAssignmentModal = ({ session, onClose, onSave }) => {
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [assignedUsers, setAssignedUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(false);
+
+  useEffect(() => {
+    if (session) {
+      fetchUsers();
+    }
+  }, [session]);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch all users
+      const { data: allUsers, error: usersError } = await supabase
+        .from('profiles')
+        .select('id, name, username')
+        .order('name');
+
+      if (usersError) throw usersError;
+
+      // Fetch currently assigned users
+      const { data: assigned, error: assignedError } = await supabase
+        .from('session_users')
+        .select('user_id')
+        .eq('session_id', session.id);
+
+      if (assignedError) throw assignedError;
+
+      const assignedUserIds = new Set(assigned.map(a => a.user_id));
+
+      // Separate available and assigned users
+      const available = allUsers.filter(user => !assignedUserIds.has(user.id));
+      const assignedList = allUsers.filter(user => assignedUserIds.has(user.id));
+
+      setAvailableUsers(available);
+      setAssignedUsers(assignedList);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAssignUser = async (userId) => {
+    try {
+      setAssigning(true);
+      const { error } = await supabase
+        .from('session_users')
+        .insert([{ session_id: session.id, user_id: userId }]);
+
+      if (error) throw error;
+
+      await fetchUsers();
+    } catch (err) {
+      console.error('Error assigning user:', err);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleUnassignUser = async (userId) => {
+    try {
+      setAssigning(true);
+      const { error } = await supabase
+        .from('session_users')
+        .delete()
+        .eq('session_id', session.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      await fetchUsers();
+    } catch (err) {
+      console.error('Error unassigning user:', err);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-xl font-bold">
+            Manage Users for Session: {session?.name}
+          </h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <div className="p-6 flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="spinner"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Available Users */}
+              <div>
+                <h4 className="text-lg font-semibold mb-4 text-gray-700">Available Users</h4>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {availableUsers.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No available users</p>
+                  ) : (
+                    availableUsers.map(user => (
+                      <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900">{user.name}</p>
+                          <p className="text-sm text-gray-500">@{user.username}</p>
+                        </div>
+                        <button
+                          onClick={() => handleAssignUser(user.id)}
+                          disabled={assigning}
+                          className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                          title="Assign User"
+                        >
+                          <UserPlus className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Assigned Users */}
+              <div>
+                <h4 className="text-lg font-semibold mb-4 text-gray-700">Assigned Users ({assignedUsers.length})</h4>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {assignedUsers.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No users assigned</p>
+                  ) : (
+                    assignedUsers.map(user => (
+                      <div key={user.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900">{user.name}</p>
+                          <p className="text-sm text-gray-500">@{user.username}</p>
+                        </div>
+                        <button
+                          onClick={() => handleUnassignUser(user.id)}
+                          disabled={assigning}
+                          className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                          title="Unassign User"
+                        >
+                          <UserMinus className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Item Selection Modal Component
+const ItemSelectionModal = ({ session, onClose, onSave }) => {
+  const [availableItems, setAvailableItems] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [assigning, setAssigning] = useState(false);
+
+  useEffect(() => {
+    if (session) {
+      fetchItems();
+    }
+  }, [session]);
+
+  const fetchItems = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch all items
+      const { data: allItems, error: itemsError } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, category, tags')
+        .order('item_name');
+
+      if (itemsError) throw itemsError;
+
+      // Fetch currently selected items
+      const { data: selected, error: selectedError } = await supabase
+        .from('session_items')
+        .select('item_id')
+        .eq('session_id', session.id);
+
+      if (selectedError) throw selectedError;
+
+      const selectedItemIds = new Set(selected.map(s => s.item_id));
+
+      // Separate available and selected items
+      const available = allItems.filter(item => !selectedItemIds.has(item.id));
+      const selectedList = allItems.filter(item => selectedItemIds.has(item.id));
+
+      setAvailableItems(available);
+      setSelectedItems(selectedList);
+    } catch (err) {
+      console.error('Error fetching items:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectItem = async (itemId) => {
+    try {
+      setAssigning(true);
+      const { error } = await supabase
+        .from('session_items')
+        .insert([{ session_id: session.id, item_id: itemId }]);
+
+      if (error) throw error;
+
+      await fetchItems();
+    } catch (err) {
+      console.error('Error selecting item:', err);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleDeselectItem = async (itemId) => {
+    try {
+      setAssigning(true);
+      const { error } = await supabase
+        .from('session_items')
+        .delete()
+        .eq('session_id', session.id)
+        .eq('item_id', itemId);
+
+      if (error) throw error;
+
+      await fetchItems();
+    } catch (err) {
+      console.error('Error deselecting item:', err);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleAddAllFiltered = async () => {
+    if (filteredAvailableItems.length === 0) return;
+
+    try {
+      setAssigning(true);
+      const itemsToAdd = filteredAvailableItems.map(item => ({
+        session_id: session.id,
+        item_id: item.id
+      }));
+
+      const { error } = await supabase
+        .from('session_items')
+        .insert(itemsToAdd);
+
+      if (error) throw error;
+
+      await fetchItems();
+    } catch (err) {
+      console.error('Error adding all filtered items:', err);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const filteredAvailableItems = availableItems.filter(item =>
+    item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.item_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.tags && item.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-xl font-bold">
+            Manage Items for Session: {session?.name}
+          </h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <div className="p-6 flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="spinner"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Available Items */}
+              <div>
+                <h4 className="text-lg font-semibold mb-4 text-gray-700">Available Items</h4>
+                <div className="mb-4 flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search items..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleAddAllFiltered}
+                    disabled={assigning || filteredAvailableItems.length === 0}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add All ({filteredAvailableItems.length})</span>
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {filteredAvailableItems.length === 0 ? (
+                    <p className="text-gray-500 text-sm">
+                      {searchTerm ? 'No items match your search' : 'No available items'}
+                    </p>
+                  ) : (
+                    filteredAvailableItems.map(item => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900">{item.item_name}</p>
+                          <p className="text-sm text-gray-500">
+                            SKU: {item.sku} | Code: {item.item_code} | Category: {item.category}
+                            {item.tags && item.tags.length > 0 && ` | Tags: ${item.tags.join(', ')}`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleSelectItem(item.id)}
+                          disabled={assigning}
+                          className="text-green-600 hover:text-green-800 disabled:opacity-50"
+                          title="Select Item"
+                        >
+                          <Plus className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Selected Items */}
+              <div>
+                <h4 className="text-lg font-semibold mb-4 text-gray-700">Selected Items ({selectedItems.length})</h4>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {selectedItems.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No items selected</p>
+                  ) : (
+                    selectedItems.map(item => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900">{item.item_name}</p>
+                          <p className="text-sm text-gray-500">
+                            SKU: {item.sku} | Code: {item.item_code} | Category: {item.category}
+                            {item.tags && item.tags.length > 0 && ` | Tags: ${item.tags.join(', ')}`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleDeselectItem(item.id)}
+                          disabled={assigning}
+                          className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                          title="Deselect Item"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
