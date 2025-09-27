@@ -11,7 +11,10 @@ import {
   Package,
   Save,
   X,
-  Download
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Tag
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -28,6 +31,9 @@ const ItemsList = ({ session, onBack }) => {
   const [countLocation, setCountLocation] = useState('');
   const [countQuantity, setCountQuantity] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [expandedItems, setExpandedItems] = useState(new Set());
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedCountId, setSelectedCountId] = useState(null);
 
   useEffect(() => {
     if (session) {
@@ -35,6 +41,23 @@ const ItemsList = ({ session, onBack }) => {
       subscribeToCounts();
     }
   }, [session]);
+
+  // Update editing state when location changes
+  useEffect(() => {
+    if (selectedItem && countLocation) {
+      const itemCounts = counts[selectedItem.id] || [];
+      const existingCount = itemCounts.find(c => c.location === countLocation);
+      if (existingCount) {
+        setIsEditing(true);
+        setSelectedCountId(existingCount.id);
+        setCountQuantity(existingCount.countedQty.toString());
+      } else {
+        setIsEditing(false);
+        setSelectedCountId(null);
+        setCountQuantity('');
+      }
+    }
+  }, [countLocation, selectedItem, counts]);
 
   const fetchSessionData = async () => {
     try {
@@ -94,21 +117,13 @@ const ItemsList = ({ session, onBack }) => {
       });
       setCounts(countsByItem);
 
-      // Fetch locations for the categories in this session
-      const categories = [...new Set(itemsData.map(item => item.category))];
-      if (categories.length > 0) {
-        const { data: locationsData, error: locationsError } = await supabase
-          .from('locations')
-          .select('*')
-          .in('category_id', categories.map(cat => {
-            // This would need a join with categories table
-            // For now, we'll fetch all locations
-            return null;
-          }).filter(Boolean));
+      // Fetch all locations (simplified - locations are shared across categories)
+      const { data: locationsData, error: locationsError } = await supabase
+        .from('locations')
+        .select('*');
 
-        if (!locationsError) {
-          setLocations(locationsData || []);
-        }
+      if (!locationsError) {
+        setLocations(locationsData || []);
       }
     } catch (err) {
       console.error('Error fetching session data:', err);
@@ -163,8 +178,23 @@ const ItemsList = ({ session, onBack }) => {
       // This would need proper category matching
       true // Simplified for now
     );
-    setCountLocation(itemLocations[0]?.name || '');
-    setCountQuantity('');
+    const defaultLocation = itemLocations[0]?.name || '';
+    setCountLocation(defaultLocation);
+
+    // Check if there's already a count for this location
+    const itemCounts = counts[item.id] || [];
+    const existingCount = itemCounts.find(c => c.location === defaultLocation);
+
+    if (existingCount) {
+      setIsEditing(true);
+      setSelectedCountId(existingCount.id);
+      setCountQuantity(existingCount.countedQty.toString());
+    } else {
+      setIsEditing(false);
+      setSelectedCountId(null);
+      setCountQuantity('');
+    }
+
     setShowCountModal(true);
   };
 
@@ -176,31 +206,46 @@ const ItemsList = ({ session, onBack }) => {
     try {
       setSubmitting(true);
 
-      // Get location ID
-      const { data: locationData, error: locationError } = await supabase
-        .from('locations')
-        .select('id')
-        .eq('name', countLocation)
-        .single();
+      if (isEditing) {
+        // Update existing count
+        const { error: countError } = await supabase
+          .from('counts')
+          .update({ counted_qty: parseInt(countQuantity) })
+          .eq('id', selectedCountId);
 
-      if (locationError) throw locationError;
+        if (countError) throw countError;
+      } else {
+        // Get location ID
+        const { data: locationData, error: locationError } = await supabase
+          .from('locations')
+          .select('id')
+          .eq('name', countLocation)
+          .single();
 
-      // Insert count
-      const { error: countError } = await supabase
-        .from('counts')
-        .insert({
-          session_id: session.id,
-          item_id: selectedItem.id,
-          user_id: user.id,
-          location_id: locationData.id,
-          counted_qty: parseInt(countQuantity)
-        });
+        if (locationError) throw locationError;
 
-      if (countError) throw countError;
+        // Insert new count
+        const { error: countError } = await supabase
+          .from('counts')
+          .insert({
+            session_id: session.id,
+            item_id: selectedItem.id,
+            user_id: user.id,
+            location_id: locationData.id,
+            counted_qty: parseInt(countQuantity)
+          });
 
-      setShowCountModal(false);
-      setCountQuantity('');
-      setSelectedItem(null);
+        if (countError) throw countError;
+        }
+  
+        // Refresh data immediately
+        fetchSessionData();
+  
+        setShowCountModal(false);
+        setCountQuantity('');
+        setSelectedItem(null);
+        setIsEditing(false);
+        setSelectedCountId(null);
     } catch (err) {
       console.error('Error saving count:', err);
       alert('Error saving count: ' + err.message);
@@ -365,12 +410,22 @@ const ItemsList = ({ session, onBack }) => {
             return (
               <div
                 key={item.id}
-                onClick={() => handleItemSelect(item)}
-                className={`bg-white p-4 rounded-lg shadow hover:shadow-md cursor-pointer transition-all ${
+                className={`bg-white rounded-lg shadow hover:shadow-md transition-all ${
                   isCounted ? 'border-l-4 border-green-500' : 'border-l-4 border-gray-300'
                 }`}
               >
-                <div className="flex justify-between items-start">
+                <div
+                  onClick={() => {
+                    const newExpanded = new Set(expandedItems);
+                    if (newExpanded.has(item.id)) {
+                      newExpanded.delete(item.id);
+                    } else {
+                      newExpanded.add(item.id);
+                    }
+                    setExpandedItems(newExpanded);
+                  }}
+                  className="p-4 hover:bg-gray-50 cursor-pointer flex justify-between items-start"
+                >
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-2">
                       <span className="font-semibold text-gray-900">{item.sku}</span>
@@ -386,11 +441,42 @@ const ItemsList = ({ session, onBack }) => {
                       {item.item_name}
                     </h3>
                     <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                      <span>UOM: {item.uom}</span>
-                      <span>Category: {item.category}</span>
+                      <div className="flex items-center space-x-1">
+                        <Package className="h-4 w-4" />
+                        <span>{item.uom}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Tag className="h-4 w-4" />
+                        <span>{item.category}</span>
+                      </div>
+                      {isCounted && (
+                        <span className="font-semibold text-green-600">
+                          Total: {totalCounted} {item.uom}
+                        </span>
+                      )}
                     </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleItemSelect(item);
+                      }}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                    >
+                      Add Count
+                    </button>
+                    {expandedItems.has(item.id) ? (
+                      <ChevronUp className="h-5 w-5 text-gray-500" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-gray-500" />
+                    )}
+                  </div>
+                </div>
+                {expandedItems.has(item.id) && (
+                  <div className="p-4 border-t">
                     {isCounted && (
-                      <div className="mt-2 border-t pt-2">
+                      <div>
                         <div className="flex justify-between items-center mb-1">
                           <h4 className="font-semibold text-sm text-gray-700">
                             Total Counted: {totalCounted} {item.uom}
@@ -412,7 +498,7 @@ const ItemsList = ({ session, onBack }) => {
                       </div>
                     )}
                   </div>
-                </div>
+                )}
               </div>
             );
           })}
@@ -424,9 +510,13 @@ const ItemsList = ({ session, onBack }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-lg w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Add Item Count</h3>
+              <h3 className="text-lg font-bold">{isEditing ? 'Edit Item Count' : 'Add Item Count'}</h3>
               <button
-                onClick={() => setShowCountModal(false)}
+                onClick={() => {
+                  setShowCountModal(false);
+                  setIsEditing(false);
+                  setSelectedCountId(null);
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
@@ -480,6 +570,8 @@ const ItemsList = ({ session, onBack }) => {
                   setShowCountModal(false);
                   setCountQuantity('');
                   setSelectedItem(null);
+                  setIsEditing(false);
+                  setSelectedCountId(null);
                 }}
                 className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
                 disabled={submitting}
