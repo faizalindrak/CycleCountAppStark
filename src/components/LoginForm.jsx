@@ -8,7 +8,8 @@ const LoginForm = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [role, setRole] = useState('counter');
+  const [role, setRole] = useState('user');
+  const [status, setStatus] = useState('inactive');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -29,6 +30,7 @@ const LoginForm = () => {
           name,
           username,
           role,
+          status,
         });
 
         if (error) throw error;
@@ -52,7 +54,8 @@ const LoginForm = () => {
     setPassword('');
     setName('');
     setUsername('');
-    setRole('counter');
+    setRole('user');
+    setStatus('inactive');
     setError('');
   };
 
@@ -100,19 +103,6 @@ const LoginForm = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Role
-                </label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="counter">Counter</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
             </>
           )}
 
