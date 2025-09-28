@@ -105,6 +105,7 @@ DROP TABLE IF EXISTS profiles;
 
 DROP TYPE IF EXISTS session_type;
 DROP TYPE IF EXISTS session_status;
+DROP TYPE IF EXISTS user_status;
 DROP TYPE IF EXISTS user_role;
 
 -- =====================================================

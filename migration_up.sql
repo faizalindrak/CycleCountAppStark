@@ -16,7 +16,13 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create enum types for better data integrity
 DO $$ BEGIN
-    CREATE TYPE user_role AS ENUM ('admin', 'counter');
+    CREATE TYPE user_role AS ENUM ('admin', 'user');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE user_status AS ENUM ('active', 'inactive');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
@@ -42,10 +48,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     username TEXT UNIQUE NOT NULL,
-    role user_role NOT NULL DEFAULT 'counter',
+    role user_role NOT NULL DEFAULT 'user',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add status column if it doesn't exist (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status user_status NOT NULL DEFAULT 'inactive';
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+-- Update existing profiles to use 'user' role instead of 'counter'
+UPDATE public.profiles SET role = 'user' WHERE role = 'counter';
+
+-- Set existing users to active status (assuming they were active before)
+UPDATE public.profiles SET status = 'active' WHERE status = 'inactive';
 
 -- Categories table
 CREATE TABLE IF NOT EXISTS public.categories (

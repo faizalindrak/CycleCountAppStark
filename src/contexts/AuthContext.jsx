@@ -79,10 +79,28 @@ export const AuthProvider = ({ children }) => {
 
       if (error) throw error;
 
+      // Check user status after successful authentication
+      const userProfile = await getCurrentUserProfile();
+
+      if (!userProfile) {
+        // If no profile found, sign out and throw error
+        await supabase.auth.signOut();
+        throw new Error('User profile not found. Please contact administrator.');
+      }
+
+      if (userProfile.status !== 'active') {
+        // If user status is not active, sign out and throw error
+        await supabase.auth.signOut();
+        const statusMessage = userProfile.status === 'inactive'
+          ? 'Your account is currently inactive and cannot be used for login.'
+          : `Your account status is "${userProfile.status}" and cannot be used for login.`;
+        throw new Error(`${statusMessage} Please contact your administrator to activate your account before attempting to log in.`);
+      }
+
       // Profile will be set by the auth state change listener
       return { data, error: null };
     } catch (error) {
-      console.error('Sign in error:', error);
+      // Don't log the error here, let the LoginForm handle it
       return { data: null, error };
     }
   };
