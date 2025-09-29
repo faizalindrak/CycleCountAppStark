@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Package,
@@ -21,8 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
 
-const AdminDashboard = () => {
-  const { user, signOut } = useAuth();
+const AdminDashboard = ({ user, signOut }) => {
   const [activeTab, setActiveTab] = useState('sessions');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,13 +33,36 @@ const AdminDashboard = () => {
   const [locations, setLocations] = useState([]);
   const [users, setUsers] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const [dataFetched, setDataFetched] = useState(() => {
+    // Check if data is already cached in localStorage (expires after 5 minutes)
+    const cached = localStorage.getItem('adminDashboardData');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        const cacheAge = Date.now() - (parsed.timestamp || 0);
+        const maxAge = 5 * 60 * 1000; // 5 minutes
 
-  // Fetch all shared data once when component mounts
-  useEffect(() => {
-    fetchAllData();
-  }, []);
+        if (cacheAge < maxAge) {
+          setSessions(parsed.sessions || []);
+          setItems(parsed.items || []);
+          setCategories(parsed.categories || []);
+          setLocations(parsed.locations || []);
+          setUsers(parsed.users || []);
+          setDataLoading(false);
+          return true;
+        } else {
+          // Cache is expired, remove it
+          localStorage.removeItem('adminDashboardData');
+        }
+      } catch (e) {
+        console.error('Error parsing cached data:', e);
+        localStorage.removeItem('adminDashboardData');
+      }
+    }
+    return false;
+  });
 
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     try {
       setDataLoading(true);
 
@@ -78,11 +100,11 @@ const AdminDashboard = () => {
         }
       }
 
-      setSessions(sessionsRes.data || []);
-      setItems(itemsRes.data || []);
-      setCategories(categoriesRes.data || []);
-      setLocations(locationsRes.data || []);
-      setUsers(usersRes.data || []);
+      const sessionsData = sessionsRes.data || [];
+      const itemsData = itemsRes.data || [];
+      const categoriesData = categoriesRes.data || [];
+      const locationsData = locationsRes.data || [];
+      const usersData = usersRes.data || [];
 
       if (sessionsRes.error) throw sessionsRes.error;
       if (itemsRes.error) throw itemsRes.error;
@@ -90,13 +112,50 @@ const AdminDashboard = () => {
       if (locationsRes.error) throw locationsRes.error;
       if (usersRes.error) throw usersRes.error;
 
+      setSessions(sessionsData);
+      setItems(itemsData);
+      setCategories(categoriesData);
+      setLocations(locationsData);
+      setUsers(usersData);
+
+      // Cache data in localStorage
+      const dataToCache = {
+        sessions: sessionsData,
+        items: itemsData,
+        categories: categoriesData,
+        locations: locationsData,
+        users: usersData,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('adminDashboardData', JSON.stringify(dataToCache));
+
+      setDataFetched(true);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Failed to load dashboard data');
     } finally {
       setDataLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch all shared data once when component mounts
+  useEffect(() => {
+    if (!dataFetched) {
+      fetchAllData();
+    }
+  }, [dataFetched, fetchAllData]);
+
+  // Handle tab visibility changes to prevent unnecessary reloads
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !dataFetched) {
+        fetchAllData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [dataFetched, fetchAllData]);
 
   const tabs = [
     { id: 'sessions', label: 'Sessions', icon: ClipboardList },
@@ -176,10 +235,18 @@ const AdminDashboard = () => {
           </div>
         ) : (
           <>
-            {activeTab === 'sessions' && <SessionsManager sessions={sessions} setSessions={setSessions} onDataChange={fetchAllData} />}
-            {activeTab === 'items' && <ItemsManager items={items} setItems={setItems} categories={categories} setCategories={setCategories} onDataChange={fetchAllData} />}
-            {activeTab === 'users' && <UsersManager users={users} setUsers={setUsers} onDataChange={fetchAllData} />}
-            {activeTab === 'categories' && <CategoriesManager items={items} categories={categories} setCategories={setCategories} locations={locations} setLocations={setLocations} onDataChange={fetchAllData} />}
+            <div style={{ display: activeTab === 'sessions' ? 'block' : 'none' }}>
+              <SessionsManager sessions={sessions} setSessions={setSessions} onDataChange={fetchAllData} />
+            </div>
+            <div style={{ display: activeTab === 'items' ? 'block' : 'none' }}>
+              <ItemsManager items={items} setItems={setItems} categories={categories} setCategories={setCategories} onDataChange={fetchAllData} />
+            </div>
+            <div style={{ display: activeTab === 'users' ? 'block' : 'none' }}>
+              <UsersManager users={users} setUsers={setUsers} onDataChange={fetchAllData} />
+            </div>
+            <div style={{ display: activeTab === 'categories' ? 'block' : 'none' }}>
+              <CategoriesManager items={items} categories={categories} setCategories={setCategories} locations={locations} setLocations={setLocations} onDataChange={fetchAllData} />
+            </div>
           </>
         )}
       </main>
@@ -188,7 +255,7 @@ const AdminDashboard = () => {
 };
 
 // Sessions Manager Component
-const SessionsManager = ({ sessions, setSessions, onDataChange }) => {
+const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
   const [showUserAssignment, setShowUserAssignment] = useState(false);
@@ -419,7 +486,7 @@ const SessionsManager = ({ sessions, setSessions, onDataChange }) => {
         <SessionEditor
           session={editingSession}
           onClose={() => setShowEditor(false)}
-          onSave={() => fetchAllData()}
+          onSave={onDataChange}
         />
       )}
 
@@ -451,10 +518,10 @@ const SessionsManager = ({ sessions, setSessions, onDataChange }) => {
       )}
     </div>
   );
-};
+});
 
 // Items Manager Component
-const ItemsManager = ({ items, setItems, categories, setCategories, onDataChange }) => {
+const ItemsManager = React.memo(({ items, setItems, categories, setCategories, onDataChange }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [bulkFile, setBulkFile] = useState(null);
@@ -749,10 +816,10 @@ const ItemsManager = ({ items, setItems, categories, setCategories, onDataChange
       )}
     </div>
   );
-};
+});
 
 // Users Manager Component
-const UsersManager = ({ users, setUsers, onDataChange }) => {
+const UsersManager = React.memo(({ users, setUsers, onDataChange }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
@@ -781,7 +848,7 @@ const UsersManager = ({ users, setUsers, onDataChange }) => {
 
       if (error) throw error;
 
-      await fetchUsers();
+      await onDataChange();
     } catch (err) {
       console.error('Error deleting user:', err);
     }
@@ -881,10 +948,10 @@ const UsersManager = ({ users, setUsers, onDataChange }) => {
       )}
     </div>
   );
-};
+});
 
 // Categories Manager Component
-const CategoriesManager = ({ items, categories, setCategories, locations, setLocations, onDataChange }) => {
+const CategoriesManager = React.memo(({ items, categories, setCategories, locations, setLocations, onDataChange }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [showLocationEditor, setShowLocationEditor] = useState(false);
@@ -1020,7 +1087,7 @@ const CategoriesManager = ({ items, categories, setCategories, locations, setLoc
         if (window.confirm(message)) {
           const success = await softDeleteLocation(locationId, user.id);
           if (success) {
-            await fetchAllData();
+            await onDataChange();
             alert('Location has been hidden successfully.');
           }
         }
@@ -1164,7 +1231,7 @@ const CategoriesManager = ({ items, categories, setCategories, locations, setLoc
         <CategoryEditor
           category={editingCategory}
           onClose={() => { setShowEditor(false); setEditingCategory(null); }}
-          onSave={() => { fetchCategories(); setShowEditor(false); setEditingCategory(null); }}
+          onSave={() => { onDataChange(); setShowEditor(false); setEditingCategory(null); }}
         />
       )}
 
@@ -1178,7 +1245,7 @@ const CategoriesManager = ({ items, categories, setCategories, locations, setLoc
       )}
     </div>
   );
-};
+});
 
 // Form Components (simplified for brevity)
 const CategoryForm = ({ onSubmit }) => {
@@ -1261,7 +1328,7 @@ const LocationForm = ({ categories, onSubmit }) => {
 };
 
 // User Assignment Modal Component
-const UserAssignmentModal = ({ session, onClose, onSave }) => {
+const UserAssignmentModal = React.memo(({ session, onClose, onSave }) => {
   const [availableUsers, setAvailableUsers] = useState([]);
   const [assignedUsers, setAssignedUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1441,10 +1508,10 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
       </div>
     </div>
   );
-};
+});
 
 // Item Selection Modal Component
-const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
+const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange }) => {
   const [availableItems, setAvailableItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1688,10 +1755,10 @@ const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
       </div>
     </div>
   );
-};
+});
 
 // Placeholder components for editors
-const SessionEditor = ({ session, onClose, onSave }) => {
+const SessionEditor = React.memo(({ session, onClose, onSave }) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: session?.name || '',
@@ -1822,9 +1889,9 @@ const SessionEditor = ({ session, onClose, onSave }) => {
       </div>
     </div>
   );
-};
+});
 
-const ItemEditor = ({ item, categories, onClose, onSave }) => {
+const ItemEditor = React.memo(({ item, categories, onClose, onSave }) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     sku: item?.sku || '',
@@ -2005,9 +2072,9 @@ const ItemEditor = ({ item, categories, onClose, onSave }) => {
       </div>
     </div>
   );
-};
+});
 
-const UserEditor = ({ user, onClose, onSave }) => {
+const UserEditor = React.memo(({ user, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: user?.name || '',
     username: user?.username || '',
@@ -2164,9 +2231,9 @@ const UserEditor = ({ user, onClose, onSave }) => {
       </div>
     </div>
   );
-};
+});
 
-const CategoryEditor = ({ category, onClose, onSave }) => {
+const CategoryEditor = React.memo(({ category, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: category?.name || '',
     description: category?.description || ''
@@ -2267,9 +2334,9 @@ const CategoryEditor = ({ category, onClose, onSave }) => {
       </div>
     </div>
   );
-};
+});
 
-const LocationEditor = ({ location, categories, onClose, onSave }) => {
+const LocationEditor = React.memo(({ location, categories, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: location?.name || '',
     category_id: location?.category_id || ''
@@ -2375,6 +2442,6 @@ const LocationEditor = ({ location, categories, onClose, onSave }) => {
       </div>
     </div>
   );
-};
+});
 
-export default AdminDashboard;
+export default React.memo(AdminDashboard);

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase, getCurrentUserProfile } from '../lib/supabase';
 
 const AuthContext = createContext({});
@@ -49,7 +49,13 @@ export const AuthProvider = ({ children }) => {
         console.log('Auth state changed:', event, session?.user?.id);
 
         if (session?.user) {
-          setUser(session.user);
+          // Only update user if it's different to prevent unnecessary re-renders
+          setUser(prevUser => {
+            if (prevUser?.id !== session.user.id) {
+              return session.user;
+            }
+            return prevUser;
+          });
           setProfile(null); // initially null
           setLoading(false);
 
@@ -70,7 +76,7 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email, password) => {
+  const signIn = useCallback(async (email, password) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -103,9 +109,9 @@ export const AuthProvider = ({ children }) => {
       // Don't log the error here, let the LoginForm handle it
       return { data: null, error };
     }
-  };
+  }, []);
 
-  const signUp = async (email, password, userData) => {
+  const signUp = useCallback(async (email, password, userData) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -122,9 +128,9 @@ export const AuthProvider = ({ children }) => {
       console.error('Sign up error:', error);
       return { data: null, error };
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -135,9 +141,9 @@ export const AuthProvider = ({ children }) => {
       console.error('Sign out error:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const updateProfile = async (updates) => {
+  const updateProfile = useCallback(async (updates) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -154,9 +160,9 @@ export const AuthProvider = ({ children }) => {
       console.error('Update profile error:', error);
       return { data: null, error };
     }
-  };
+  }, [user?.id]);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     profile,
     loading,
@@ -166,7 +172,7 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     isAdmin: profile?.role === 'admin' || user?.user_metadata?.role === 'admin',
     isAuthenticated: !!user,
-  };
+  }), [user, profile, loading, signIn, signUp, signOut, updateProfile]);
 
   return (
     <AuthContext.Provider value={value}>

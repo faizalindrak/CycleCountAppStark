@@ -7,7 +7,7 @@ import SessionSelection from './components/SessionSelection';
 import ItemsList from './components/ItemsList';
 
 const App = () => {
-  const { user, profile, loading, isAuthenticated, isAdmin } = useAuth();
+  const { user, profile, loading, isAuthenticated, isAdmin, signOut } = useAuth();
   const [currentPage, setCurrentPage] = useState('login');
   const [selectedSession, setSelectedSession] = useState(null);
 
@@ -34,7 +34,7 @@ const App = () => {
 
   // Admin dashboard
   if (isAdmin && currentPage === 'login') {
-    return <AdminDashboard />;
+    return <AdminDashboard user={user} signOut={signOut} />;
   }
 
   // Counter session selection
@@ -54,7 +54,7 @@ const App = () => {
 
   // Default routing based on user role
   if (isAdmin) {
-    return <AdminDashboard />;
+    return <AdminDashboard user={user} signOut={signOut} />;
   } else {
     return <SessionSelection onSessionSelect={handleSessionSelect} />;
   }
