@@ -35,6 +35,7 @@ const ItemsList = ({ session, onBack }) => {
   const [expandedItems, setExpandedItems] = useState(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [selectedCountId, setSelectedCountId] = useState(null);
+  const [lastSelectedLocation, setLastSelectedLocation] = useState('');
 
   useEffect(() => {
     if (session) {
@@ -42,6 +43,14 @@ const ItemsList = ({ session, onBack }) => {
       subscribeToCounts();
     }
   }, [session]);
+
+  // Load last selected location from localStorage
+  useEffect(() => {
+    const savedLocation = localStorage.getItem(`lastSelectedLocation_${session?.id}_${user?.id}`);
+    if (savedLocation) {
+      setLastSelectedLocation(savedLocation);
+    }
+  }, [session, user]);
 
   // Update editing state when location changes
   useEffect(() => {
@@ -243,12 +252,12 @@ const ItemsList = ({ session, onBack }) => {
 
   const handleItemSelect = (item) => {
     setSelectedItem(item);
-    // Set default location if available
-    const itemLocations = locations.filter(loc =>
-      // This would need proper category matching
-      true // Simplified for now
-    );
-    const defaultLocation = itemLocations[0]?.name || '';
+
+    // Set default location: use last selected location, or fallback to first available
+    const defaultLocation = lastSelectedLocation && locations.some(loc => loc.name === lastSelectedLocation)
+      ? lastSelectedLocation
+      : locations[0]?.name || '';
+
     setCountLocation(defaultLocation);
 
     // Check if there's already a count for this location
@@ -266,6 +275,16 @@ const ItemsList = ({ session, onBack }) => {
     }
 
     setShowCountModal(true);
+  };
+
+  const handleLocationChange = (newLocation) => {
+    setCountLocation(newLocation);
+
+    // Save as last selected location if it's a valid location
+    if (newLocation && locations.some(loc => loc.name === newLocation)) {
+      setLastSelectedLocation(newLocation);
+      localStorage.setItem(`lastSelectedLocation_${session.id}_${user.id}`, newLocation);
+    }
   };
 
   const handleItemClick = (item) => {
@@ -604,7 +623,7 @@ const ItemsList = ({ session, onBack }) => {
                 </label>
                 <select
                   value={countLocation}
-                  onChange={(e) => setCountLocation(e.target.value)}
+                  onChange={(e) => handleLocationChange(e.target.value)}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 >
@@ -697,7 +716,7 @@ const ItemsList = ({ session, onBack }) => {
                 </label>
                 <select
                   value={countLocation}
-                  onChange={(e) => setCountLocation(e.target.value)}
+                  onChange={(e) => handleLocationChange(e.target.value)}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 >
