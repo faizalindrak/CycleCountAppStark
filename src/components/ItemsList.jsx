@@ -27,6 +27,7 @@ const ItemsList = ({ session, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showCountModal, setShowCountModal] = useState(false);
+  const [showCalculationPopup, setShowCalculationPopup] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [countLocation, setCountLocation] = useState('');
   const [countQuantity, setCountQuantity] = useState('');
@@ -196,6 +197,22 @@ const ItemsList = ({ session, onBack }) => {
     }
 
     setShowCountModal(true);
+  };
+
+  const handleItemClick = (item) => {
+    setSelectedItem(item);
+    setShowCalculationPopup(true);
+  };
+
+  const handleChevronClick = (e, itemId) => {
+    e.stopPropagation();
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId);
+    } else {
+      newExpanded.add(itemId);
+    }
+    setExpandedItems(newExpanded);
   };
 
   const handleSaveCount = async () => {
@@ -375,15 +392,7 @@ const ItemsList = ({ session, onBack }) => {
                 }`}
               >
                 <div
-                  onClick={() => {
-                    const newExpanded = new Set(expandedItems);
-                    if (newExpanded.has(item.id)) {
-                      newExpanded.delete(item.id);
-                    } else {
-                      newExpanded.add(item.id);
-                    }
-                    setExpandedItems(newExpanded);
-                  }}
+                  onClick={() => handleItemClick(item)}
                   className="p-4 hover:bg-gray-50 cursor-pointer flex justify-between items-start"
                 >
                   <div className="flex-1">
@@ -417,19 +426,16 @@ const ItemsList = ({ session, onBack }) => {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleItemSelect(item);
-                      }}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                    >
-                      Add Count
-                    </button>
                     {expandedItems.has(item.id) ? (
-                      <ChevronUp className="h-5 w-5 text-gray-500" />
+                      <ChevronUp
+                        className="h-5 w-5 text-gray-500 cursor-pointer hover:text-gray-700"
+                        onClick={(e) => handleChevronClick(e, item.id)}
+                      />
                     ) : (
-                      <ChevronDown className="h-5 w-5 text-gray-500" />
+                      <ChevronDown
+                        className="h-5 w-5 text-gray-500 cursor-pointer hover:text-gray-700"
+                        onClick={(e) => handleChevronClick(e, item.id)}
+                      />
                     )}
                   </div>
                 </div>
@@ -540,6 +546,153 @@ const ItemsList = ({ session, onBack }) => {
               </button>
               <button
                 onClick={handleSaveCount}
+                disabled={!countLocation || !countQuantity || submitting}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 flex items-center space-x-2"
+              >
+                {submitting ? (
+                  <div className="spinner w-4 h-4"></div>
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span>Save Count</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calculation Popup */}
+      {showCalculationPopup && selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">{isEditing ? 'Edit Item Count' : 'Add Item Count'}</h3>
+              <button
+                onClick={() => {
+                  setShowCalculationPopup(false);
+                  setSelectedItem(null);
+                  setCountQuantity('');
+                  setIsEditing(false);
+                  setSelectedCountId(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">SKU: {selectedItem.sku}</p>
+              <p className="font-medium">{selectedItem.item_name}</p>
+              <p className="text-sm text-gray-500">Code: {selectedItem.item_code}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Location
+                </label>
+                <select
+                  value={countLocation}
+                  onChange={(e) => setCountLocation(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Location</option>
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.name}>
+                      {loc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Quantity
+                </label>
+                <input
+                  type="number"
+                  value={countQuantity}
+                  onChange={(e) => setCountQuantity(e.target.value)}
+                  placeholder="Enter quantity"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowCalculationPopup(false);
+                  setCountQuantity('');
+                  setSelectedItem(null);
+                  setIsEditing(false);
+                  setSelectedCountId(null);
+                }}
+                className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+                disabled={submitting}
+              >
+                Close
+              </button>
+              <button
+                onClick={async () => {
+                  if (!selectedItem || !countLocation || !countQuantity) {
+                    return;
+                  }
+
+                  try {
+                    setSubmitting(true);
+
+                    if (isEditing) {
+                      // Update existing count
+                      const { error: countError } = await supabase
+                        .from('counts')
+                        .update({ counted_qty: parseInt(countQuantity) })
+                        .eq('id', selectedCountId);
+
+                      if (countError) throw countError;
+                    } else {
+                      // Get location ID
+                      const { data: locationData, error: locationError } = await supabase
+                        .from('locations')
+                        .select('id')
+                        .eq('name', countLocation)
+                        .single();
+
+                      if (locationError) throw locationError;
+
+                      // Insert new count
+                      const { error: countError } = await supabase
+                        .from('counts')
+                        .insert({
+                          session_id: session.id,
+                          item_id: selectedItem.id,
+                          user_id: user.id,
+                          location_id: locationData.id,
+                          counted_qty: parseInt(countQuantity)
+                        });
+
+                      if (countError) throw countError;
+                    }
+
+                    // Refresh data immediately
+                    fetchSessionData();
+
+                    setShowCalculationPopup(false);
+                    setCountQuantity('');
+                    setSelectedItem(null);
+                    setIsEditing(false);
+                    setSelectedCountId(null);
+                  } catch (err) {
+                    console.error('Error saving count:', err);
+                    alert('Error saving count: ' + err.message);
+                  } finally {
+                    setSubmitting(false);
+                  }
+                }}
                 disabled={!countLocation || !countQuantity || submitting}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 flex items-center space-x-2"
               >
