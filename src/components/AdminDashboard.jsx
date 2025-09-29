@@ -429,6 +429,8 @@ const SessionsManager = ({ sessions, setSessions, onDataChange }) => {
           onClose={() => {
             setShowUserAssignment(false);
             setSelectedSessionForAssignment(null);
+            // Refresh parent data when modal is closed to show updated counts
+            onDataChange();
           }}
           onSave={() => fetchAllData()}
         />
@@ -440,6 +442,8 @@ const SessionsManager = ({ sessions, setSessions, onDataChange }) => {
           onClose={() => {
             setShowItemSelection(false);
             setSelectedSessionForItems(null);
+            // Refresh parent data when modal is closed to show updated counts
+            onDataChange();
           }}
           onSave={onDataChange}
           onDataChange={onDataChange}
@@ -1313,10 +1317,8 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      // Refresh data but keep modal open
-      await onDataChange();
-      // Refresh the items list to show updated counts
-      await fetchItems();
+      // Only refresh local modal data, not parent data
+      await fetchUsers();
     } catch (err) {
       console.error('Error assigning user:', err);
     } finally {
@@ -1335,10 +1337,8 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      // Refresh data but keep modal open
-      await onDataChange();
-      // Refresh the items list to show updated counts
-      await fetchItems();
+      // Only refresh local modal data, not parent data
+      await fetchUsers();
     } catch (err) {
       console.error('Error unassigning user:', err);
     } finally {
@@ -1493,9 +1493,7 @@ const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
 
       if (error) throw error;
 
-      // Refresh data but keep modal open
-      await onDataChange();
-      // Refresh the items list to show updated counts
+      // Only refresh local modal data, not parent data
       await fetchItems();
     } catch (err) {
       console.error('Error selecting item:', err);
@@ -1515,9 +1513,7 @@ const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
 
       if (error) throw error;
 
-      // Refresh data but keep modal open
-      await onDataChange();
-      // Refresh the items list to show updated counts
+      // Only refresh local modal data, not parent data
       await fetchItems();
     } catch (err) {
       console.error('Error deselecting item:', err);
@@ -1542,7 +1538,8 @@ const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
 
       if (error) throw error;
 
-      await onDataChange();
+      // Only refresh local modal data, not parent data
+      await fetchItems();
     } catch (err) {
       console.error('Error adding all filtered items:', err);
     } finally {
