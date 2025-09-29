@@ -146,7 +146,7 @@ const ItemsList = ({ session, onBack }) => {
         },
         (payload) => {
           console.log('Count change received:', payload);
-          fetchSessionData(); // Refetch data when counts change
+          handleRealtimeCountChange(payload);
         }
       )
       .subscribe();
@@ -154,6 +154,75 @@ const ItemsList = ({ session, onBack }) => {
     return () => {
       subscription.unsubscribe();
     };
+  };
+
+  const handleRealtimeCountChange = async (payload) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+
+    if (eventType === 'INSERT' && newRecord) {
+      // Add new count from another user
+      try {
+        const { data: locationData } = await supabase
+          .from('locations')
+          .select('name')
+          .eq('id', newRecord.location_id)
+          .single();
+
+        if (locationData) {
+          setCounts(prevCounts => {
+            const updatedCounts = { ...prevCounts };
+            const itemId = newRecord.item_id;
+
+            if (!updatedCounts[itemId]) {
+              updatedCounts[itemId] = [];
+            }
+
+            const newCount = {
+              location: locationData.name,
+              countedQty: newRecord.counted_qty,
+              timestamp: newRecord.timestamp,
+              id: newRecord.id
+            };
+
+            updatedCounts[itemId] = [...updatedCounts[itemId], newCount];
+            return updatedCounts;
+          });
+        }
+      } catch (error) {
+        console.error('Error handling real-time INSERT:', error);
+      }
+    } else if (eventType === 'UPDATE' && newRecord) {
+      // Update existing count from another user
+      setCounts(prevCounts => {
+        const updatedCounts = { ...prevCounts };
+        const itemId = newRecord.item_id;
+
+        if (updatedCounts[itemId]) {
+          updatedCounts[itemId] = updatedCounts[itemId].map(count =>
+            count.id === newRecord.id
+              ? { ...count, countedQty: newRecord.counted_qty, timestamp: newRecord.timestamp }
+              : count
+          );
+        }
+
+        return updatedCounts;
+      });
+    } else if (eventType === 'DELETE' && oldRecord) {
+      // Remove deleted count from another user
+      setCounts(prevCounts => {
+        const updatedCounts = { ...prevCounts };
+        const itemId = oldRecord.item_id;
+
+        if (updatedCounts[itemId]) {
+          updatedCounts[itemId] = updatedCounts[itemId].filter(count => count.id !== oldRecord.id);
+          if (updatedCounts[itemId].length === 0) {
+            delete updatedCounts[itemId];
+          }
+        }
+
+        return updatedCounts;
+      });
+    }
   };
 
   const filteredItems = useMemo(() => {
@@ -231,6 +300,20 @@ const ItemsList = ({ session, onBack }) => {
           .eq('id', selectedCountId);
 
         if (countError) throw countError;
+
+        // Update local state immediately
+        setCounts(prevCounts => {
+          const updatedCounts = { ...prevCounts };
+          const itemId = selectedItem.id;
+          if (updatedCounts[itemId]) {
+            updatedCounts[itemId] = updatedCounts[itemId].map(count =>
+              count.id === selectedCountId
+                ? { ...count, countedQty: parseInt(countQuantity) }
+                : count
+            );
+          }
+          return updatedCounts;
+        });
       } else {
         // Get location ID
         const { data: locationData, error: locationError } = await supabase
@@ -242,7 +325,7 @@ const ItemsList = ({ session, onBack }) => {
         if (locationError) throw locationError;
 
         // Insert new count
-        const { error: countError } = await supabase
+        const { data: newCount, error: countError } = await supabase
           .from('counts')
           .insert({
             session_id: session.id,
@@ -250,19 +333,39 @@ const ItemsList = ({ session, onBack }) => {
             user_id: user.id,
             location_id: locationData.id,
             counted_qty: parseInt(countQuantity)
-          });
+          })
+          .select()
+          .single();
 
         if (countError) throw countError;
+
+        // Update local state immediately with the new count
+        if (newCount) {
+          setCounts(prevCounts => {
+            const updatedCounts = { ...prevCounts };
+            const itemId = selectedItem.id;
+            if (!updatedCounts[itemId]) {
+              updatedCounts[itemId] = [];
+            }
+
+            const newCountData = {
+              location: countLocation,
+              countedQty: newCount.counted_qty,
+              timestamp: newCount.timestamp,
+              id: newCount.id
+            };
+
+            updatedCounts[itemId] = [...updatedCounts[itemId], newCountData];
+            return updatedCounts;
+          });
         }
-  
-        // Refresh data immediately
-        fetchSessionData();
-  
-        setShowCountModal(false);
-        setCountQuantity('');
-        setSelectedItem(null);
-        setIsEditing(false);
-        setSelectedCountId(null);
+      }
+
+      setShowCountModal(false);
+      setCountQuantity('');
+      setSelectedItem(null);
+      setIsEditing(false);
+      setSelectedCountId(null);
     } catch (err) {
       console.error('Error saving count:', err);
       alert('Error saving count: ' + err.message);
@@ -654,6 +757,20 @@ const ItemsList = ({ session, onBack }) => {
                         .eq('id', selectedCountId);
 
                       if (countError) throw countError;
+
+                      // Update local state immediately
+                      setCounts(prevCounts => {
+                        const updatedCounts = { ...prevCounts };
+                        const itemId = selectedItem.id;
+                        if (updatedCounts[itemId]) {
+                          updatedCounts[itemId] = updatedCounts[itemId].map(count =>
+                            count.id === selectedCountId
+                              ? { ...count, countedQty: parseInt(countQuantity) }
+                              : count
+                          );
+                        }
+                        return updatedCounts;
+                      });
                     } else {
                       // Get location ID
                       const { data: locationData, error: locationError } = await supabase
@@ -665,7 +782,7 @@ const ItemsList = ({ session, onBack }) => {
                       if (locationError) throw locationError;
 
                       // Insert new count
-                      const { error: countError } = await supabase
+                      const { data: newCount, error: countError } = await supabase
                         .from('counts')
                         .insert({
                           session_id: session.id,
@@ -673,13 +790,33 @@ const ItemsList = ({ session, onBack }) => {
                           user_id: user.id,
                           location_id: locationData.id,
                           counted_qty: parseInt(countQuantity)
-                        });
+                        })
+                        .select()
+                        .single();
 
                       if (countError) throw countError;
-                    }
 
-                    // Refresh data immediately
-                    fetchSessionData();
+                      // Update local state immediately with the new count
+                      if (newCount) {
+                        setCounts(prevCounts => {
+                          const updatedCounts = { ...prevCounts };
+                          const itemId = selectedItem.id;
+                          if (!updatedCounts[itemId]) {
+                            updatedCounts[itemId] = [];
+                          }
+
+                          const newCountData = {
+                            location: countLocation,
+                            countedQty: newCount.counted_qty,
+                            timestamp: newCount.timestamp,
+                            id: newCount.id
+                          };
+
+                          updatedCounts[itemId] = [...updatedCounts[itemId], newCountData];
+                          return updatedCounts;
+                        });
+                      }
+                    }
 
                     setShowCalculationPopup(false);
                     setCountQuantity('');
