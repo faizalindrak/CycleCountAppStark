@@ -19,13 +19,84 @@ import {
   UserMinus,
   Download
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
 
 const AdminDashboard = () => {
   const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('sessions');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Shared state for all manager components
+  const [sessions, setSessions] = useState([]);
+  const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  // Fetch all shared data once when component mounts
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  const fetchAllData = async () => {
+    try {
+      setDataLoading(true);
+
+      // Fetch all data in parallel for better performance
+      const [sessionsRes, itemsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
+        supabase.from('sessions').select(`*, session_users (user_id)`).order('created_date', { ascending: false }),
+        supabase.from('items').select('*').order('item_name'),
+        supabase.from('categories').select('*').order('name'),
+        supabase.from('location_usage').select('*').order('name'),
+        supabase.from('profiles').select('*').order('name')
+      ]);
+
+      // Handle sessions with user profiles
+      if (sessionsRes.data) {
+        const userIds = [...new Set(sessionsRes.data.flatMap(session =>
+          session.session_users?.map(su => su.user_id) || []
+        ))];
+
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, name, username')
+            .in('id', userIds);
+
+          const profileMap = {};
+          profiles?.forEach(profile => {
+            profileMap[profile.id] = profile;
+          });
+
+          sessionsRes.data.forEach(session => {
+            session.session_users?.forEach(su => {
+              su.profiles = profileMap[su.user_id];
+            });
+          });
+        }
+      }
+
+      setSessions(sessionsRes.data || []);
+      setItems(itemsRes.data || []);
+      setCategories(categoriesRes.data || []);
+      setLocations(locationsRes.data || []);
+      setUsers(usersRes.data || []);
+
+      if (sessionsRes.error) throw sessionsRes.error;
+      if (itemsRes.error) throw itemsRes.error;
+      if (categoriesRes.error) throw categoriesRes.error;
+      if (locationsRes.error) throw locationsRes.error;
+      if (usersRes.error) throw usersRes.error;
+
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setDataLoading(false);
+    }
+  };
 
   const tabs = [
     { id: 'sessions', label: 'Sessions', icon: ClipboardList },
@@ -98,19 +169,26 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {activeTab === 'sessions' && <SessionsManager />}
-        {activeTab === 'items' && <ItemsManager />}
-        {activeTab === 'users' && <UsersManager />}
-        {activeTab === 'categories' && <CategoriesManager />}
+        {dataLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="spinner"></div>
+            <span className="ml-2 text-gray-600">Loading dashboard data...</span>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'sessions' && <SessionsManager sessions={sessions} setSessions={setSessions} />}
+            {activeTab === 'items' && <ItemsManager items={items} setItems={setItems} categories={categories} setCategories={setCategories} onDataChange={fetchAllData} />}
+            {activeTab === 'users' && <UsersManager users={users} setUsers={setUsers} />}
+            {activeTab === 'categories' && <CategoriesManager items={items} categories={categories} setCategories={setCategories} locations={locations} setLocations={setLocations} onDataChange={fetchAllData} />}
+          </>
+        )}
       </main>
     </div>
   );
 };
 
 // Sessions Manager Component
-const SessionsManager = () => {
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
+const SessionsManager = ({ sessions, setSessions }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
   const [showUserAssignment, setShowUserAssignment] = useState(false);
@@ -118,58 +196,7 @@ const SessionsManager = () => {
   const [selectedSessionForAssignment, setSelectedSessionForAssignment] = useState(null);
   const [selectedSessionForItems, setSelectedSessionForItems] = useState(null);
 
-  useEffect(() => {
-    fetchSessions();
-  }, []);
-
-  const fetchSessions = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('sessions')
-        .select(`
-          *,
-          session_users (
-            user_id
-          )
-        `)
-        .order('created_date', { ascending: false });
-
-      if (data) {
-        // Fetch profiles for all unique user_ids
-        const userIds = [...new Set(data.flatMap(session =>
-          session.session_users?.map(su => su.user_id) || []
-        ))];
-
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, name, username')
-            .in('id', userIds);
-
-          // Create a map for quick lookup
-          const profileMap = {};
-          profiles?.forEach(profile => {
-            profileMap[profile.id] = profile;
-          });
-
-          // Attach profiles to session_users
-          data.forEach(session => {
-            session.session_users?.forEach(su => {
-              su.profiles = profileMap[su.user_id];
-            });
-          });
-        }
-      }
-
-      if (error) throw error;
-      setSessions(data || []);
-    } catch (err) {
-      console.error('Error fetching sessions:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Data is now passed as props from parent component
 
   const handleCreateSession = () => {
     setEditingSession(null);
@@ -194,7 +221,7 @@ const SessionsManager = () => {
 
       if (error) throw error;
 
-      await fetchSessions();
+      await fetchAllData();
     } catch (err) {
       console.error('Error deleting session:', err);
     }
@@ -301,13 +328,6 @@ const SessionsManager = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="spinner"></div>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -399,7 +419,7 @@ const SessionsManager = () => {
         <SessionEditor
           session={editingSession}
           onClose={() => setShowEditor(false)}
-          onSave={fetchSessions}
+          onSave={() => fetchAllData()}
         />
       )}
 
@@ -410,7 +430,7 @@ const SessionsManager = () => {
             setShowUserAssignment(false);
             setSelectedSessionForAssignment(null);
           }}
-          onSave={fetchSessions}
+          onSave={() => fetchAllData()}
         />
       )}
 
@@ -421,7 +441,7 @@ const SessionsManager = () => {
             setShowItemSelection(false);
             setSelectedSessionForItems(null);
           }}
-          onSave={fetchSessions}
+          onSave={() => fetchAllData()}
         />
       )}
     </div>
@@ -429,10 +449,7 @@ const SessionsManager = () => {
 };
 
 // Items Manager Component
-const ItemsManager = () => {
-  const [items, setItems] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+const ItemsManager = ({ items, setItems, categories, setCategories, onDataChange }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [bulkFile, setBulkFile] = useState(null);
@@ -440,40 +457,7 @@ const ItemsManager = () => {
   const [bulkError, setBulkError] = useState('');
   const [showBulkModal, setShowBulkModal] = useState(false);
 
-  useEffect(() => {
-    fetchItems();
-    fetchCategories();
-  }, []);
-
-  const fetchItems = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('items')
-        .select('*')
-        .order('item_name');
-
-      if (error) throw error;
-      setItems(data || []);
-    } catch (err) {
-      console.error('Error fetching items:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (err) {
-      console.error('Error fetching categories:', err);
-    }
-  };
+  // Data is now passed as props from parent component
 
   const handleCreateItem = () => {
     setEditingItem(null);
@@ -498,7 +482,7 @@ const ItemsManager = () => {
 
       if (error) throw error;
 
-      await fetchItems();
+      await onDataChange();
     } catch (err) {
       console.error('Error deleting item:', err);
     }
@@ -586,7 +570,7 @@ const ItemsManager = () => {
       setBulkFile(null);
       setShowBulkModal(false);
       setBulkError('');
-      await fetchItems();
+      await onDataChange();
       alert(`Successfully uploaded ${itemsToInsert.length} items`);
     } catch (err) {
       setBulkError(err.message);
@@ -595,13 +579,7 @@ const ItemsManager = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="spinner"></div>
-      </div>
-    );
-  }
+  // Loading is now handled by parent component
 
   return (
     <div className="bg-white p-4 rounded-lg shadow">
@@ -761,7 +739,7 @@ const ItemsManager = () => {
           item={editingItem}
           categories={categories}
           onClose={() => setShowEditor(false)}
-          onSave={fetchItems}
+          onSave={onDataChange}
         />
       )}
     </div>
@@ -769,31 +747,11 @@ const ItemsManager = () => {
 };
 
 // Users Manager Component
-const UsersManager = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+const UsersManager = ({ users, setUsers }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setUsers(data || []);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Data is now passed as props from parent component
 
   const handleCreateUser = () => {
     setEditingUser(null);
@@ -824,13 +782,7 @@ const UsersManager = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="spinner"></div>
-      </div>
-    );
-  }
+  // Loading is now handled by parent component
 
   return (
     <div className="bg-white p-4 rounded-lg shadow">
@@ -919,7 +871,7 @@ const UsersManager = () => {
         <UserEditor
           user={editingUser}
           onClose={() => setShowEditor(false)}
-          onSave={fetchUsers}
+          onSave={onDataChange}
         />
       )}
     </div>
@@ -927,53 +879,22 @@ const UsersManager = () => {
 };
 
 // Categories Manager Component
-const CategoriesManager = () => {
-  const [categories, setCategories] = useState([]);
-  const [locations, setLocations] = useState([]);
-  const [loading, setLoading] = useState(true);
+const CategoriesManager = ({ items, categories, setCategories, locations, setLocations, onDataChange }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [showLocationEditor, setShowLocationEditor] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
 
-  useEffect(() => {
-    fetchCategories();
-    fetchLocations();
-  }, []);
+  // Helper function to get category usage information
+  const getCategoryUsageInfo = (category) => {
+    const itemCount = items.filter(item => item.category === category.name).length;
+    const locationCount = locations.filter(location => location.category_id === category.id).length;
 
-  const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (err) {
-      console.error('Error fetching categories:', err);
-    }
-  };
-
-  const fetchLocations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('locations')
-        .select(`
-          *,
-          categories (
-            name
-          )
-        `)
-        .order('name');
-
-      if (error) throw error;
-      setLocations(data || []);
-    } catch (err) {
-      console.error('Error fetching locations:', err);
-    } finally {
-      setLoading(false);
-    }
+    return {
+      isInUse: itemCount > 0 || locationCount > 0,
+      itemCount,
+      locationCount
+    };
   };
 
   const handleCreateCategory = async (name) => {
@@ -984,7 +905,7 @@ const CategoriesManager = () => {
 
       if (error) throw error;
 
-      await fetchCategories();
+      await fetchAllData();
     } catch (err) {
       console.error('Error creating category:', err);
       throw err;
@@ -998,18 +919,31 @@ const CategoriesManager = () => {
 
   const handleDeleteCategory = async (categoryId) => {
     try {
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', categoryId);
+      const usage = await checkCategoryUsage(categoryId);
 
-      if (error) throw error;
+      if (!usage.canDelete) {
+        const message = `Cannot delete category "${usage.category}" because it is currently in use:\n\n` +
+          (usage.itemCount > 0 ? `• Used by ${usage.itemCount} item(s)\n` : '') +
+          (usage.locationCount > 0 ? `• Has ${usage.locationCount} location(s)\n` : '') +
+          `\nPlease reassign or remove these dependencies before deleting the category.`;
 
-      await fetchCategories();
-      await fetchLocations();
+        alert(message);
+        return;
+      }
+
+      if (window.confirm(`Are you sure you want to delete the category "${usage.category}"?`)) {
+        const { error } = await supabase
+          .from('categories')
+          .delete()
+          .eq('id', categoryId);
+
+        if (error) throw error;
+
+        await fetchAllData();
+      }
     } catch (err) {
       console.error('Error deleting category:', err);
-      throw err;
+      alert('Error deleting category: ' + err.message);
     }
   };
 
@@ -1021,7 +955,7 @@ const CategoriesManager = () => {
 
       if (error) throw error;
 
-      await fetchLocations();
+      await onDataChange();
     } catch (err) {
       console.error('Error creating location:', err);
       throw err;
@@ -1035,27 +969,72 @@ const CategoriesManager = () => {
 
   const handleDeleteLocation = async (locationId) => {
     try {
-      const { error } = await supabase
-        .from('locations')
-        .delete()
-        .eq('id', locationId);
+      const usage = await checkLocationUsage(locationId);
 
-      if (error) throw error;
+      if (!usage.canModify) {
+        const message = `Cannot delete location "${usage.location}" because it has count data in ${usage.countRecords} record(s) across ${usage.sessions.length} session(s).\n\n` +
+          `This location will be hidden instead to preserve data integrity.`;
 
-      await fetchLocations();
+        if (window.confirm(message + '\n\nDo you want to hide this location?')) {
+          const success = await softDeleteLocation(locationId, user.id);
+          if (success) {
+            await fetchAllData();
+            alert('Location has been hidden successfully.');
+          }
+        }
+        return;
+      }
+
+      if (window.confirm(`Are you sure you want to delete the location "${usage.location}"? This action cannot be undone.`)) {
+        const { error } = await supabase
+          .from('locations')
+          .delete()
+          .eq('id', locationId);
+
+        if (error) throw error;
+
+        await fetchAllData();
+      }
     } catch (err) {
-      console.error('Error deleting location:', err);
-      throw err;
+      console.error('Error managing location:', err);
+      alert('Error managing location: ' + err.message);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="spinner"></div>
-      </div>
-    );
-  }
+  const handleToggleLocationVisibility = async (locationId) => {
+    try {
+      const usage = await checkLocationUsage(locationId);
+
+      if (usage.isActive) {
+        // Hide location
+        const message = `This will hide the location "${usage.location}" from future use while preserving existing count data.\n\n` +
+          `Count records: ${usage.countRecords}\n` +
+          `Sessions affected: ${usage.sessions.length}\n\n` +
+          `Do you want to proceed?`;
+
+        if (window.confirm(message)) {
+          const success = await softDeleteLocation(locationId, user.id);
+          if (success) {
+            await fetchAllData();
+            alert('Location has been hidden successfully.');
+          }
+        }
+      } else {
+        // Show location
+        if (window.confirm(`Do you want to reactivate the location "${usage.location}"?`)) {
+          const success = await reactivateLocation(locationId);
+          if (success) {
+            await onDataChange();
+            alert('Location has been reactivated successfully.');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling location visibility:', err);
+      alert('Error toggling location visibility: ' + err.message);
+    }
+  };
+
 
   return (
     <div>
@@ -1066,57 +1045,114 @@ const CategoriesManager = () => {
       />
 
       <div className="grid gap-6 md:grid-cols-2 mt-6">
-        {categories.map((category) => (
-          <div key={category.id} className="bg-white p-4 rounded-lg shadow">
-            <div className="flex justify-between items-center border-b pb-2 mb-3">
-              <h4 className="font-bold text-gray-800">{category.name}</h4>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleEditCategory(category)}
-                  className="text-blue-500 hover:text-blue-700"
-                  title="Edit Category"
-                >
-                  <Edit className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => handleDeleteCategory(category.id)}
-                  className="text-red-500 hover:text-red-700"
-                  title="Delete Category"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+        {categories.map((category) => {
+          // Get usage information for this category
+          const categoryUsage = getCategoryUsageInfo(category);
+
+          return (
+            <div key={category.id} className={`bg-white p-4 rounded-lg shadow ${categoryUsage.isInUse ? 'border-l-4 border-orange-500' : ''}`}>
+              <div className="flex justify-between items-center border-b pb-2 mb-3">
+                <div>
+                  <h4 className="font-bold text-gray-800">{category.name}</h4>
+                  {categoryUsage.isInUse && (
+                    <div className="flex items-center gap-4 mt-1">
+                      {categoryUsage.itemCount > 0 && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          {categoryUsage.itemCount} item(s)
+                        </span>
+                      )}
+                      {categoryUsage.locationCount > 0 && (
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                          {categoryUsage.locationCount} location(s)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleEditCategory(category)}
+                    className={`hover:text-blue-700 ${categoryUsage.isInUse ? 'text-gray-400 cursor-not-allowed' : 'text-blue-500'}`}
+                    title={categoryUsage.isInUse ? 'Cannot edit category that is in use' : 'Edit Category'}
+                    disabled={categoryUsage.isInUse}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCategory(category.id)}
+                    className={`hover:text-red-700 ${categoryUsage.isInUse ? 'text-gray-400 cursor-not-allowed' : 'text-red-500'}`}
+                    title={categoryUsage.isInUse ? 'Cannot delete category that is in use' : 'Delete Category'}
+                    disabled={categoryUsage.isInUse}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            </div>
             <ul className="space-y-2">
               {locations
                 .filter(loc => loc.category_id === category.id)
-                .map(loc => (
-                  <li key={loc.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                    <span className="text-gray-700">{loc.name}</span>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEditLocation(loc)}
-                        className="text-blue-500 hover:text-blue-700"
-                        title="Edit Location"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteLocation(loc.id)}
-                        className="text-red-500 hover:text-red-700"
-                        title="Delete Location"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              {locations.filter(loc => loc.category_id === category.id).length === 0 && (
-                <p className="text-gray-500 text-sm">No locations defined.</p>
-              )}
-            </ul>
-          </div>
-        ))}
+                .map(loc => {
+                  // Check if this location has count data
+                  const hasCountData = loc.count_records > 0;
+
+                  return (
+                    <li key={loc.id} className={`flex justify-between items-center p-2 rounded ${!loc.is_active ? 'bg-red-50 opacity-60' : 'bg-gray-50'}`}>
+                      <div className="flex-1">
+                        <span className={`text-gray-700 ${!loc.is_active ? 'line-through' : ''}`}>
+                          {loc.name}
+                          {!loc.is_active && <span className="text-xs text-red-600 ml-2">(Hidden)</span>}
+                        </span>
+                        {hasCountData && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                              {loc.count_records} count(s)
+                            </span>
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                              {loc.sessions_with_counts} session(s)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex space-x-2">
+                        {hasCountData ? (
+                          // Location with count data - show toggle visibility button
+                          <button
+                            onClick={() => handleToggleLocationVisibility(loc.id)}
+                            className={`p-1 rounded ${loc.is_active ? 'text-orange-500 hover:text-orange-700' : 'text-green-500 hover:text-green-700'}`}
+                            title={loc.is_active ? 'Hide Location' : 'Show Location'}
+                          >
+                            {loc.is_active ? <X className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                          </button>
+                        ) : (
+                          // Location without count data - show normal edit/delete buttons
+                          <>
+                            <button
+                              onClick={() => handleEditLocation(loc)}
+                              className="text-blue-500 hover:text-blue-700"
+                              title="Edit Location"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLocation(loc.id)}
+                              className="text-red-500 hover:text-red-700"
+                              title="Delete Location"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+               {locations.filter(loc => loc.category_id === category.id).length === 0 && (
+                 <p className="text-gray-500 text-sm">No locations defined.</p>
+               )}
+             </ul>
+           </div>
+         );
+       })}
       </div>
 
       {showEditor && (
@@ -1132,7 +1168,7 @@ const CategoriesManager = () => {
           location={editingLocation}
           categories={categories}
           onClose={() => { setShowLocationEditor(false); setEditingLocation(null); }}
-          onSave={() => { fetchLocations(); setShowLocationEditor(false); setEditingLocation(null); }}
+          onSave={() => { fetchAllData(); setShowLocationEditor(false); setEditingLocation(null); }}
         />
       )}
     </div>
@@ -1276,7 +1312,7 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      await fetchUsers();
+      await onDataChange();
     } catch (err) {
       console.error('Error assigning user:', err);
     } finally {
@@ -1450,7 +1486,7 @@ const ItemSelectionModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      await fetchItems();
+      await fetchAllData();
     } catch (err) {
       console.error('Error selecting item:', err);
     } finally {
@@ -1469,7 +1505,7 @@ const ItemSelectionModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      await fetchItems();
+      await fetchAllData();
     } catch (err) {
       console.error('Error deselecting item:', err);
     } finally {
@@ -1493,7 +1529,7 @@ const ItemSelectionModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      await fetchItems();
+      await onDataChange();
     } catch (err) {
       console.error('Error adding all filtered items:', err);
     } finally {

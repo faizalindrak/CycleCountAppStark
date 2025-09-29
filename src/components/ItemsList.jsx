@@ -127,10 +127,12 @@ const ItemsList = ({ session, onBack }) => {
       });
       setCounts(countsByItem);
 
-      // Fetch all locations (simplified - locations are shared across categories)
+      // Fetch all active locations (simplified - locations are shared across categories)
       const { data: locationsData, error: locationsError } = await supabase
         .from('locations')
-        .select('*');
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
 
       if (!locationsError) {
         setLocations(locationsData || []);
@@ -175,6 +177,7 @@ const ItemsList = ({ session, onBack }) => {
           .from('locations')
           .select('name')
           .eq('id', newRecord.location_id)
+          .eq('is_active', true)
           .single();
 
         if (locationData) {
@@ -334,11 +337,12 @@ const ItemsList = ({ session, onBack }) => {
           return updatedCounts;
         });
       } else {
-        // Get location ID
+        // Get location ID (only active locations)
         const { data: locationData, error: locationError } = await supabase
           .from('locations')
           .select('id')
           .eq('name', countLocation)
+          .eq('is_active', true)
           .single();
 
         if (locationError) throw locationError;
@@ -791,11 +795,12 @@ const ItemsList = ({ session, onBack }) => {
                         return updatedCounts;
                       });
                     } else {
-                      // Get location ID
+                      // Get location ID (only active locations)
                       const { data: locationData, error: locationError } = await supabase
                         .from('locations')
                         .select('id')
                         .eq('name', countLocation)
+                        .eq('is_active', true)
                         .single();
 
                       if (locationError) throw locationError;
