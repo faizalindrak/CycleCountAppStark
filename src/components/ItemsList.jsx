@@ -36,6 +36,7 @@ const ItemsList = ({ session, onBack }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedCountId, setSelectedCountId] = useState(null);
   const [lastSelectedLocation, setLastSelectedLocation] = useState('');
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     if (session) {
@@ -94,6 +95,9 @@ const ItemsList = ({ session, onBack }) => {
       const itemsData = sessionItems.map(si => si.items).filter(Boolean);
       setItems(itemsData);
 
+      // Get unique categories from items
+      const itemCategories = [...new Set(itemsData.map(item => item.category).filter(Boolean))];
+
       // Fetch existing counts for this session
       const { data: countsData, error: countsError } = await supabase
         .from('counts')
@@ -127,15 +131,36 @@ const ItemsList = ({ session, onBack }) => {
       });
       setCounts(countsByItem);
 
-      // Fetch all active locations (simplified - locations are shared across categories)
-      const { data: locationsData, error: locationsError } = await supabase
-        .from('locations')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
+      // Fetch locations filtered by item categories
+      if (itemCategories.length > 0) {
+        // Get category IDs for the item categories
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name')
+          .in('name', itemCategories);
 
-      if (!locationsError) {
-        setLocations(locationsData || []);
+        if (categoriesError) throw categoriesError;
+
+        setCategories(categoriesData);
+        const categoryIds = categoriesData.map(cat => cat.id);
+
+        if (categoryIds.length > 0) {
+          // Fetch locations that belong to the categories of items in this session
+          const { data: locationsData, error: locationsError } = await supabase
+            .from('locations')
+            .select('*')
+            .in('category_id', categoryIds)
+            .eq('is_active', true)
+            .order('name');
+
+          if (!locationsError) {
+            setLocations(locationsData || []);
+          }
+        } else {
+          setLocations([]);
+        }
+      } else {
+        setLocations([]);
       }
     } catch (err) {
       console.error('Error fetching session data:', err);
@@ -256,10 +281,14 @@ const ItemsList = ({ session, onBack }) => {
   const handleItemSelect = (item) => {
     setSelectedItem(item);
 
-    // Set default location: use last selected location, or fallback to first available
-    const defaultLocation = lastSelectedLocation && locations.some(loc => loc.name === lastSelectedLocation)
+    // Get filtered locations for this item
+    const itemCategory = categories.find(cat => cat.name === item.category);
+    const filteredLocations = itemCategory ? locations.filter(loc => loc.category_id === itemCategory.id) : [];
+
+    // Set default location: use last selected location if it's in filtered, or fallback to first available
+    const defaultLocation = lastSelectedLocation && filteredLocations.some(loc => loc.name === lastSelectedLocation)
       ? lastSelectedLocation
-      : locations[0]?.name || '';
+      : filteredLocations[0]?.name || '';
 
     setCountLocation(defaultLocation);
 
@@ -292,6 +321,18 @@ const ItemsList = ({ session, onBack }) => {
 
   const handleItemClick = (item) => {
     setSelectedItem(item);
+
+    // Get filtered locations for this item
+    const itemCategory = categories.find(cat => cat.name === item.category);
+    const filteredLocations = itemCategory ? locations.filter(loc => loc.category_id === itemCategory.id) : [];
+
+    // Set default location: use last selected location if it's in filtered, or fallback to first available
+    const defaultLocation = lastSelectedLocation && filteredLocations.some(loc => loc.name === lastSelectedLocation)
+      ? lastSelectedLocation
+      : filteredLocations[0]?.name || '';
+
+    setCountLocation(defaultLocation);
+
     setShowCalculationPopup(true);
   };
 
@@ -632,11 +673,15 @@ const ItemsList = ({ session, onBack }) => {
                   required
                 >
                   <option value="">Select Location</option>
-                  {locations.map(loc => (
-                    <option key={loc.id} value={loc.name}>
-                      {loc.name}
-                    </option>
-                  ))}
+                  {(() => {
+                    const itemCategory = categories.find(cat => cat.name === selectedItem.category);
+                    const filteredLocations = itemCategory ? locations.filter(loc => loc.category_id === itemCategory.id) : [];
+                    return filteredLocations.map(loc => (
+                      <option key={loc.id} value={loc.name}>
+                        {loc.name}
+                      </option>
+                    ));
+                  })()}
                 </select>
               </div>
 
@@ -725,11 +770,15 @@ const ItemsList = ({ session, onBack }) => {
                   required
                 >
                   <option value="">Select Location</option>
-                  {locations.map(loc => (
-                    <option key={loc.id} value={loc.name}>
-                      {loc.name}
-                    </option>
-                  ))}
+                  {(() => {
+                    const itemCategory = categories.find(cat => cat.name === selectedItem.category);
+                    const filteredLocations = itemCategory ? locations.filter(loc => loc.category_id === itemCategory.id) : [];
+                    return filteredLocations.map(loc => (
+                      <option key={loc.id} value={loc.name}>
+                        {loc.name}
+                      </option>
+                    ));
+                  })()}
                 </select>
               </div>
 
