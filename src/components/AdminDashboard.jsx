@@ -176,9 +176,9 @@ const AdminDashboard = () => {
           </div>
         ) : (
           <>
-            {activeTab === 'sessions' && <SessionsManager sessions={sessions} setSessions={setSessions} />}
+            {activeTab === 'sessions' && <SessionsManager sessions={sessions} setSessions={setSessions} onDataChange={fetchAllData} />}
             {activeTab === 'items' && <ItemsManager items={items} setItems={setItems} categories={categories} setCategories={setCategories} onDataChange={fetchAllData} />}
-            {activeTab === 'users' && <UsersManager users={users} setUsers={setUsers} />}
+            {activeTab === 'users' && <UsersManager users={users} setUsers={setUsers} onDataChange={fetchAllData} />}
             {activeTab === 'categories' && <CategoriesManager items={items} categories={categories} setCategories={setCategories} locations={locations} setLocations={setLocations} onDataChange={fetchAllData} />}
           </>
         )}
@@ -188,7 +188,7 @@ const AdminDashboard = () => {
 };
 
 // Sessions Manager Component
-const SessionsManager = ({ sessions, setSessions }) => {
+const SessionsManager = ({ sessions, setSessions, onDataChange }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
   const [showUserAssignment, setShowUserAssignment] = useState(false);
@@ -221,7 +221,7 @@ const SessionsManager = ({ sessions, setSessions }) => {
 
       if (error) throw error;
 
-      await fetchAllData();
+      await onDataChange();
     } catch (err) {
       console.error('Error deleting session:', err);
     }
@@ -441,7 +441,8 @@ const SessionsManager = ({ sessions, setSessions }) => {
             setShowItemSelection(false);
             setSelectedSessionForItems(null);
           }}
-          onSave={() => fetchAllData()}
+          onSave={onDataChange}
+          onDataChange={onDataChange}
         />
       )}
     </div>
@@ -747,7 +748,7 @@ const ItemsManager = ({ items, setItems, categories, setCategories, onDataChange
 };
 
 // Users Manager Component
-const UsersManager = ({ users, setUsers }) => {
+const UsersManager = ({ users, setUsers, onDataChange }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
@@ -905,7 +906,7 @@ const CategoriesManager = ({ items, categories, setCategories, locations, setLoc
 
       if (error) throw error;
 
-      await fetchAllData();
+      await onDataChange();
     } catch (err) {
       console.error('Error creating category:', err);
       throw err;
@@ -938,8 +939,8 @@ const CategoriesManager = ({ items, categories, setCategories, locations, setLoc
           .eq('id', categoryId);
 
         if (error) throw error;
-
-        await fetchAllData();
+  
+        await onDataChange();
       }
     } catch (err) {
       console.error('Error deleting category:', err);
@@ -978,7 +979,7 @@ const CategoriesManager = ({ items, categories, setCategories, locations, setLoc
         if (window.confirm(message + '\n\nDo you want to hide this location?')) {
           const success = await softDeleteLocation(locationId, user.id);
           if (success) {
-            await fetchAllData();
+            await onDataChange();
             alert('Location has been hidden successfully.');
           }
         }
@@ -993,7 +994,7 @@ const CategoriesManager = ({ items, categories, setCategories, locations, setLoc
 
         if (error) throw error;
 
-        await fetchAllData();
+        await onDataChange();
       }
     } catch (err) {
       console.error('Error managing location:', err);
@@ -1168,7 +1169,7 @@ const CategoriesManager = ({ items, categories, setCategories, locations, setLoc
           location={editingLocation}
           categories={categories}
           onClose={() => { setShowLocationEditor(false); setEditingLocation(null); }}
-          onSave={() => { fetchAllData(); setShowLocationEditor(false); setEditingLocation(null); }}
+          onSave={() => { onDataChange(); setShowLocationEditor(false); setEditingLocation(null); }}
         />
       )}
     </div>
@@ -1312,7 +1313,10 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
+      // Refresh data but keep modal open
       await onDataChange();
+      // Refresh the items list to show updated counts
+      await fetchItems();
     } catch (err) {
       console.error('Error assigning user:', err);
     } finally {
@@ -1331,7 +1335,10 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      await fetchUsers();
+      // Refresh data but keep modal open
+      await onDataChange();
+      // Refresh the items list to show updated counts
+      await fetchItems();
     } catch (err) {
       console.error('Error unassigning user:', err);
     } finally {
@@ -1429,7 +1436,7 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
 };
 
 // Item Selection Modal Component
-const ItemSelectionModal = ({ session, onClose, onSave }) => {
+const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
   const [availableItems, setAvailableItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1486,7 +1493,10 @@ const ItemSelectionModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      await fetchAllData();
+      // Refresh data but keep modal open
+      await onDataChange();
+      // Refresh the items list to show updated counts
+      await fetchItems();
     } catch (err) {
       console.error('Error selecting item:', err);
     } finally {
@@ -1505,7 +1515,10 @@ const ItemSelectionModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      await fetchAllData();
+      // Refresh data but keep modal open
+      await onDataChange();
+      // Refresh the items list to show updated counts
+      await fetchItems();
     } catch (err) {
       console.error('Error deselecting item:', err);
     } finally {
