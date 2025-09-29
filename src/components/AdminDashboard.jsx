@@ -1317,8 +1317,12 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      // Only refresh local modal data, not parent data
-      await fetchUsers();
+      // Update state incrementally instead of full re-fetch
+      const userToMove = availableUsers.find(user => user.id === userId);
+      if (userToMove) {
+        setAvailableUsers(prev => prev.filter(user => user.id !== userId));
+        setAssignedUsers(prev => [...prev, userToMove].sort((a, b) => a.name.localeCompare(b.name)));
+      }
     } catch (err) {
       console.error('Error assigning user:', err);
     } finally {
@@ -1337,8 +1341,12 @@ const UserAssignmentModal = ({ session, onClose, onSave }) => {
 
       if (error) throw error;
 
-      // Only refresh local modal data, not parent data
-      await fetchUsers();
+      // Update state incrementally instead of full re-fetch
+      const userToMove = assignedUsers.find(user => user.id === userId);
+      if (userToMove) {
+        setAssignedUsers(prev => prev.filter(user => user.id !== userId));
+        setAvailableUsers(prev => [...prev, userToMove].sort((a, b) => a.name.localeCompare(b.name)));
+      }
     } catch (err) {
       console.error('Error unassigning user:', err);
     } finally {
@@ -1493,8 +1501,12 @@ const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
 
       if (error) throw error;
 
-      // Only refresh local modal data, not parent data
-      await fetchItems();
+      // Update state incrementally instead of full re-fetch
+      const itemToMove = availableItems.find(item => item.id === itemId);
+      if (itemToMove) {
+        setAvailableItems(prev => prev.filter(item => item.id !== itemId));
+        setSelectedItems(prev => [...prev, itemToMove]);
+      }
     } catch (err) {
       console.error('Error selecting item:', err);
     } finally {
@@ -1513,8 +1525,12 @@ const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
 
       if (error) throw error;
 
-      // Only refresh local modal data, not parent data
-      await fetchItems();
+      // Update state incrementally instead of full re-fetch
+      const itemToMove = selectedItems.find(item => item.id === itemId);
+      if (itemToMove) {
+        setSelectedItems(prev => prev.filter(item => item.id !== itemId));
+        setAvailableItems(prev => [...prev, itemToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      }
     } catch (err) {
       console.error('Error deselecting item:', err);
     } finally {
@@ -1538,8 +1554,13 @@ const ItemSelectionModal = ({ session, onClose, onSave, onDataChange }) => {
 
       if (error) throw error;
 
-      // Only refresh local modal data, not parent data
-      await fetchItems();
+      // Update state incrementally instead of full re-fetch
+      const itemsToMove = filteredAvailableItems;
+      setSelectedItems(prev => [...prev, ...itemsToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      setAvailableItems(prev => prev.filter(item => !itemsToMove.some(moved => moved.id === item.id)));
+
+      // Clear search term after adding all
+      setSearchTerm('');
     } catch (err) {
       console.error('Error adding all filtered items:', err);
     } finally {
