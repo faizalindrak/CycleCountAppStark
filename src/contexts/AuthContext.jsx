@@ -45,31 +45,33 @@ export const AuthProvider = ({ children }) => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
+      (event, session) => {
+        setUser(prevUser => {
+          const newAuthUser = session?.user;
 
-        if (session?.user) {
-          // Only update user if it's different to prevent unnecessary re-renders
-          setUser(prevUser => {
-            if (prevUser?.id !== session.user.id) {
-              return session.user;
+          // When a user is logged in
+          if (newAuthUser) {
+            // Check if the user is different from the previous one
+            if (prevUser?.id !== newAuthUser.id) {
+              // If it's a different user, reset profile and fetch the new one
+              setProfile(null);
+              getCurrentUserProfile().then(userProfile => {
+                setProfile(userProfile);
+              }).catch(error => {
+                console.error('Error fetching user profile for new user:', error);
+              });
+              return newAuthUser;
             }
+            // If it's the same user, no need to do anything with the profile
             return prevUser;
-          });
-          setProfile(null); // initially null
-          setLoading(false);
+          }
 
-          // Fetch profile asynchronously
-          getCurrentUserProfile().then(userProfile => {
-            setProfile(userProfile);
-          }).catch(error => {
-            console.error('Error fetching user profile:', error);
-          });
-        } else {
-          setUser(null);
+          // When a user is logged out
           setProfile(null);
-          setLoading(false);
-        }
+          return null;
+        });
+
+        setLoading(false);
       }
     );
 
