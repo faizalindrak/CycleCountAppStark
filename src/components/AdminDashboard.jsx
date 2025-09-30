@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Package,
@@ -17,7 +17,8 @@ import {
   Calendar,
   UserPlus,
   UserMinus,
-  Download
+  Download,
+  CheckCircle
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
 
@@ -33,6 +34,9 @@ const AdminDashboard = ({ user, signOut }) => {
   const [locations, setLocations] = useState([]);
   const [users, setUsers] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const cacheDuration = 5 * 60 * 1000; // 5 minutes
+  const lastFetchTimeRef = useRef(0);
+  const isFetchingRef = useRef(false);
   const [dataFetched, setDataFetched] = useState(() => {
     // Check if data is already cached in localStorage (expires after 5 minutes)
     const cached = localStorage.getItem('adminDashboardData');
@@ -40,15 +44,15 @@ const AdminDashboard = ({ user, signOut }) => {
       try {
         const parsed = JSON.parse(cached);
         const cacheAge = Date.now() - (parsed.timestamp || 0);
-        const maxAge = 5 * 60 * 1000; // 5 minutes
 
-        if (cacheAge < maxAge) {
+        if (cacheAge < cacheDuration) {
           setSessions(parsed.sessions || []);
           setItems(parsed.items || []);
           setCategories(parsed.categories || []);
           setLocations(parsed.locations || []);
           setUsers(parsed.users || []);
           setDataLoading(false);
+          lastFetchTimeRef.current = parsed.timestamp || Date.now();
           return true;
         } else {
           // Cache is expired, remove it
@@ -62,9 +66,14 @@ const AdminDashboard = ({ user, signOut }) => {
     return false;
   });
 
-  const fetchAllData = useCallback(async () => {
+  const fetchAllData = useCallback(async ({ showLoading = true } = {}) => {
+    if (isFetchingRef.current) return;
+
     try {
-      setDataLoading(true);
+      if (showLoading) {
+        setDataLoading(true);
+      }
+      isFetchingRef.current = true;
 
       // Fetch all data in parallel for better performance
       const [sessionsRes, itemsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
@@ -117,6 +126,7 @@ const AdminDashboard = ({ user, signOut }) => {
       setCategories(categoriesData);
       setLocations(locationsData);
       setUsers(usersData);
+      setError('');
 
       // Cache data in localStorage
       const dataToCache = {
@@ -130,11 +140,15 @@ const AdminDashboard = ({ user, signOut }) => {
       localStorage.setItem('adminDashboardData', JSON.stringify(dataToCache));
 
       setDataFetched(true);
+      lastFetchTimeRef.current = dataToCache.timestamp;
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Failed to load dashboard data');
     } finally {
-      setDataLoading(false);
+      if (showLoading) {
+        setDataLoading(false);
+      }
+      isFetchingRef.current = false;
     }
   }, []);
 
@@ -148,14 +162,19 @@ const AdminDashboard = ({ user, signOut }) => {
   // Handle tab visibility changes to prevent unnecessary reloads
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !dataFetched) {
-        fetchAllData();
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        const timeSinceLastFetch = now - lastFetchTimeRef.current;
+
+        if (timeSinceLastFetch >= cacheDuration && !isFetchingRef.current) {
+          fetchAllData({ showLoading: false });
+        }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [dataFetched, fetchAllData]);
+  }, [cacheDuration, fetchAllData]);
 
   const tabs = [
     { id: 'sessions', label: 'Sessions', icon: ClipboardList },
