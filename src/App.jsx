@@ -4,12 +4,14 @@ import LoginForm from './components/LoginForm';
 import LoadingSpinner from './components/LoadingSpinner';
 import AdminDashboard from './components/AdminDashboard';
 import SessionSelection from './components/SessionSelection';
+import GroupSessionSelection from './components/GroupSessionSelection';
 import ItemsList from './components/ItemsList';
 
 const App = () => {
   const { user, profile, loading, isAuthenticated, isAdmin, signOut } = useAuth();
   const [currentPage, setCurrentPage] = useState('login');
   const [selectedSession, setSelectedSession] = useState(null);
+  const [selectedGroupSession, setSelectedGroupSession] = useState(null);
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -29,7 +31,18 @@ const App = () => {
 
   const handleBackToSessions = () => {
     setSelectedSession(null);
+    setSelectedGroupSession(null);
     setCurrentPage('select-session');
+  };
+
+  const handleGroupSessionSelect = (groupSession) => {
+    setSelectedGroupSession(groupSession);
+    setCurrentPage('items-list');
+  };
+
+  const handleBackToGroupSessions = () => {
+    setSelectedGroupSession(null);
+    setCurrentPage('group-session-selection');
   };
 
   // Admin dashboard
@@ -42,12 +55,24 @@ const App = () => {
     return <SessionSelection onSessionSelect={handleSessionSelect} />;
   }
 
+  // Counter group session selection
+  if (!isAdmin && currentPage === 'group-session-selection') {
+    return (
+      <GroupSessionSelection
+        session={selectedSession}
+        onGroupSessionSelect={handleGroupSessionSelect}
+        onBack={handleBackToSessions}
+      />
+    );
+  }
+
   // Items counting page
   if (currentPage === 'items-list' && selectedSession) {
     return (
       <ItemsList
         session={selectedSession}
-        onBack={handleBackToSessions}
+        groupSession={selectedGroupSession}
+        onBack={selectedGroupSession ? handleBackToGroupSessions : handleBackToSessions}
       />
     );
   }

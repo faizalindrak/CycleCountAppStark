@@ -113,18 +113,27 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const signUp = useCallback(async (email, password, userData) => {
+  // ✅ FIX: Perbaiki signUp function - ganti 'userData' jadi 'metadata'
+  const signUp = useCallback(async (email, password, metadata) => {
     try {
+      console.log('Signing up with metadata:', metadata); // Debug log
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: userData, // This will be stored in user_metadata
+          data: {
+            name: metadata.name,      
+            username: metadata.username, 
+            role: metadata.role,      
+            status: metadata.status,
+          },
         },
       });
 
       if (error) throw error;
 
+      console.log('Signup successful:', data); // Debug log
       return { data, error: null };
     } catch (error) {
       console.error('Sign up error:', error);

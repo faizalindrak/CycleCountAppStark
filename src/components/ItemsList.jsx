@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const ItemsList = ({ session, onBack }) => {
+const ItemsList = ({ session, groupSession, onBack }) => {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [counts, setCounts] = useState({});
@@ -40,10 +40,14 @@ const ItemsList = ({ session, onBack }) => {
 
   useEffect(() => {
     if (session) {
-      fetchSessionData();
+      if (groupSession) {
+        fetchGroupSessionData();
+      } else {
+        fetchSessionData();
+      }
       subscribeToCounts();
     }
-  }, [session]);
+  }, [session, groupSession]);
 
   // Load last selected location from localStorage
   useEffect(() => {
@@ -70,13 +74,13 @@ const ItemsList = ({ session, onBack }) => {
     }
   }, [countLocation, selectedItem, counts]);
 
-  const fetchSessionData = async () => {
+  const fetchGroupSessionData = async () => {
     try {
       setLoading(true);
 
-      // Fetch session items with item details
-      const { data: sessionItems, error: sessionItemsError } = await supabase
-        .from('session_items')
+      // Fetch group session items with item details
+      const { data: groupSessionItems, error: groupSessionItemsError } = await supabase
+        .from('group_session_items')
         .select(`
           items (
             id,
@@ -88,11 +92,11 @@ const ItemsList = ({ session, onBack }) => {
             tags
           )
         `)
-        .eq('session_id', session.id);
+        .eq('group_session_id', groupSession.id);
 
-      if (sessionItemsError) throw sessionItemsError;
+      if (groupSessionItemsError) throw groupSessionItemsError;
 
-      const itemsData = sessionItems.map(si => si.items).filter(Boolean);
+      const itemsData = groupSessionItems.map(gsi => gsi.items).filter(Boolean);
       setItems(itemsData);
 
       // Get unique categories from items
@@ -170,26 +174,65 @@ const ItemsList = ({ session, onBack }) => {
   };
 
   const subscribeToCounts = () => {
-    const subscription = supabase
-      .channel(`counts:${session.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'counts',
-          filter: `session_id=eq.${session.id}`
-        },
-        (payload) => {
-          console.log('Count change received:', payload);
-          handleRealtimeCountChange(payload);
-        }
-      )
-      .subscribe();
+    // For group sessions, we need to get the item IDs first
+    if (groupSession) {
+      // Fetch group session items to get item IDs for filtering
+      supabase
+        .from('group_session_items')
+        .select('item_id')
+        .eq('group_session_id', groupSession.id)
+        .then(({ data: groupItems }) => {
+          const itemIds = groupItems?.map(gi => gi.item_id) || [];
 
-    return () => {
-      subscription.unsubscribe();
-    };
+          if (itemIds.length > 0) {
+            const subscription = supabase
+              .channel(`counts:${session.id}:${groupSession.id}`)
+              .on(
+                'postgres_changes',
+                {
+                  event: '*',
+                  schema: 'public',
+                  table: 'counts',
+                  filter: `session_id=eq.${session.id}`
+                },
+                (payload) => {
+                  // Only process counts for items in this group session
+                  if (itemIds.includes(payload.new?.item_id) || itemIds.includes(payload.old?.item_id)) {
+                    console.log('Group session count change received:', payload);
+                    handleRealtimeCountChange(payload);
+                  }
+                }
+              )
+              .subscribe();
+
+            return () => {
+              subscription.unsubscribe();
+            };
+          }
+        });
+    } else {
+      // Original logic for session-level counting
+      const subscription = supabase
+        .channel(`counts:${session.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'counts',
+            filter: `session_id=eq.${session.id}`
+          },
+          (payload) => {
+            console.log('Count change received:', payload);
+            handleRealtimeCountChange(payload);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
   };
 
   const handleRealtimeCountChange = async (payload) => {
@@ -486,9 +529,10 @@ const ItemsList = ({ session, onBack }) => {
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900 truncate">
-                  {session.name}
+                  {groupSession ? groupSession.name : session.name}
                 </h1>
                 <p className="text-gray-600 text-sm">
+                  {groupSession && `Session: ${session.name} • `}
                   Items: {filteredItems.length} of {items.length}
                 </p>
               </div>

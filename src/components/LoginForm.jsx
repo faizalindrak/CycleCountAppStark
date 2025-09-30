@@ -8,8 +8,8 @@ const LoginForm = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [role, setRole] = useState('user');
-  const [status, setStatus] = useState('inactive');
+  const [role, setRole] = useState('counter');
+  const [status, setStatus] = useState('active');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -54,8 +54,8 @@ const LoginForm = () => {
     setPassword('');
     setName('');
     setUsername('');
-    setRole('user');
-    setStatus('inactive');
+    setRole('counter');
+    setStatus('active');
     setError('');
   };
 

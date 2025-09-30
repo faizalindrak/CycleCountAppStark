@@ -18,9 +18,11 @@ import {
   UserPlus,
   UserMinus,
   Download,
-  CheckCircle
+  CheckCircle,
+  UserCheck
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
+import GroupSessionManager from './GroupSessionManager';
 
 const AdminDashboard = ({ user, signOut }) => {
   const [activeTab, setActiveTab] = useState('sessions');
@@ -279,8 +281,10 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
   const [editingSession, setEditingSession] = useState(null);
   const [showUserAssignment, setShowUserAssignment] = useState(false);
   const [showItemSelection, setShowItemSelection] = useState(false);
+  const [showGroupSessionManager, setShowGroupSessionManager] = useState(false);
   const [selectedSessionForAssignment, setSelectedSessionForAssignment] = useState(null);
   const [selectedSessionForItems, setSelectedSessionForItems] = useState(null);
+  const [selectedSessionForGroupSessions, setSelectedSessionForGroupSessions] = useState(null);
 
   // Data is now passed as props from parent component
 
@@ -321,6 +325,11 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
   const handleManageItems = (session) => {
     setSelectedSessionForItems(session);
     setShowItemSelection(true);
+  };
+
+  const handleManageGroupSessions = (session) => {
+    setSelectedSessionForGroupSessions(session);
+    setShowGroupSessionManager(true);
   };
 
   const formatDate = (date) => {
@@ -474,6 +483,13 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
                     <Package className="h-5 w-5" />
                   </button>
                   <button
+                    onClick={() => handleManageGroupSessions(session)}
+                    className="text-purple-600 hover:text-purple-800 p-2"
+                    title="Manage Group Sessions"
+                  >
+                    <UserCheck className="h-5 w-5" />
+                  </button>
+                  <button
                     onClick={() => handleEditSession(session)}
                     className="text-indigo-600 hover:text-indigo-800 p-2"
                     title="Edit Session"
@@ -532,6 +548,17 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
             onDataChange();
           }}
           onSave={onDataChange}
+          onDataChange={onDataChange}
+        />
+      )}
+
+      {showGroupSessionManager && (
+        <GroupSessionManager
+          session={selectedSessionForGroupSessions}
+          onClose={() => {
+            setShowGroupSessionManager(false);
+            setSelectedSessionForGroupSessions(null);
+          }}
           onDataChange={onDataChange}
         />
       )}
