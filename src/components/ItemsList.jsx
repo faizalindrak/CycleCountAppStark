@@ -14,9 +14,11 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
-  Tag
+  Tag,
+  Calculator
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import CalculatorComponent from './Calculator';
 
 const ItemsList = ({ session, onBack }) => {
   const { user } = useAuth();
@@ -37,6 +39,36 @@ const ItemsList = ({ session, onBack }) => {
   const [selectedCountId, setSelectedCountId] = useState(null);
   const [lastSelectedLocation, setLastSelectedLocation] = useState('');
   const [categories, setCategories] = useState([]);
+  const [showCalculator, setShowCalculator] = useState(false);
+
+  // Safe mathematical expression evaluator
+  const evaluateExpression = (expression) => {
+    if (!expression || expression.trim() === '') return 0;
+
+    try {
+      // Remove any potentially dangerous characters and validate
+      const sanitized = expression.replace(/[^0-9+\-*/.() ]/g, '');
+
+      // Basic validation - ensure we have a valid mathematical expression
+      if (!/^[0-9+\-*/.() ]+$/.test(sanitized)) {
+        throw new Error('Invalid characters in expression');
+      }
+
+      // Use Function constructor for safer evaluation than eval()
+      // This is still potentially dangerous but much safer than direct eval()
+      const result = new Function('return ' + sanitized)();
+
+      // Ensure result is a valid number
+      if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) {
+        throw new Error('Invalid calculation result');
+      }
+
+      return Math.max(0, Math.floor(result)); // Ensure non-negative integer
+    } catch (error) {
+      console.error('Error evaluating expression:', error);
+      return 0;
+    }
+  };
 
   useEffect(() => {
     if (session) {
@@ -355,11 +387,17 @@ const ItemsList = ({ session, onBack }) => {
     try {
       setSubmitting(true);
 
+      // Calculate the result from the expression
+      const calculatedQty = evaluateExpression(countQuantity);
+
       if (isEditing) {
         // Update existing count
         const { error: countError } = await supabase
           .from('counts')
-          .update({ counted_qty: parseInt(countQuantity) })
+          .update({
+            counted_qty: calculatedQty,
+            counted_qty_calculation: countQuantity.trim()
+          })
           .eq('id', selectedCountId);
 
         if (countError) throw countError;
@@ -371,7 +409,7 @@ const ItemsList = ({ session, onBack }) => {
           if (updatedCounts[itemId]) {
             updatedCounts[itemId] = updatedCounts[itemId].map(count =>
               count.id === selectedCountId
-                ? { ...count, countedQty: parseInt(countQuantity) }
+                ? { ...count, countedQty: calculatedQty }
                 : count
             );
           }
@@ -396,7 +434,8 @@ const ItemsList = ({ session, onBack }) => {
             item_id: selectedItem.id,
             user_id: user.id,
             location_id: locationData.id,
-            counted_qty: parseInt(countQuantity)
+            counted_qty: calculatedQty,
+            counted_qty_calculation: countQuantity.trim()
           })
           .select()
           .single();
@@ -689,15 +728,33 @@ const ItemsList = ({ session, onBack }) => {
                 <label className="block text-sm font-medium text-gray-700">
                   Quantity
                 </label>
-                <input
-                  type="number"
-                  value={countQuantity}
-                  onChange={(e) => setCountQuantity(e.target.value)}
-                  placeholder="Enter quantity"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={countQuantity}
+                    onChange={(e) => setCountQuantity(e.target.value)}
+                    placeholder="Enter quantity or expression (e.g., 5*10+5*20)"
+                    className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCalculator(!showCalculator)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    title="Open Calculator"
+                  >
+                    <Calculator className="h-5 w-5" />
+                  </button>
+                </div>
+                {showCalculator && (
+                  <div className="mt-2">
+                    <CalculatorComponent
+                      value={countQuantity}
+                      onChange={setCountQuantity}
+                      onClose={() => setShowCalculator(false)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -786,15 +843,33 @@ const ItemsList = ({ session, onBack }) => {
                 <label className="block text-sm font-medium text-gray-700">
                   Quantity
                 </label>
-                <input
-                  type="number"
-                  value={countQuantity}
-                  onChange={(e) => setCountQuantity(e.target.value)}
-                  placeholder="Enter quantity"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={countQuantity}
+                    onChange={(e) => setCountQuantity(e.target.value)}
+                    placeholder="Enter quantity or expression (e.g., 5*10+5*20)"
+                    className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCalculator(!showCalculator)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    title="Open Calculator"
+                  >
+                    <Calculator className="h-5 w-5" />
+                  </button>
+                </div>
+                {showCalculator && (
+                  <div className="mt-2">
+                    <CalculatorComponent
+                      value={countQuantity}
+                      onChange={setCountQuantity}
+                      onClose={() => setShowCalculator(false)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -821,11 +896,17 @@ const ItemsList = ({ session, onBack }) => {
                   try {
                     setSubmitting(true);
 
+                    // Calculate the result from the expression
+                    const calculatedQty = evaluateExpression(countQuantity);
+
                     if (isEditing) {
                       // Update existing count
                       const { error: countError } = await supabase
                         .from('counts')
-                        .update({ counted_qty: parseInt(countQuantity) })
+                        .update({
+                          counted_qty: calculatedQty,
+                          counted_qty_calculation: countQuantity.trim()
+                        })
                         .eq('id', selectedCountId);
 
                       if (countError) throw countError;
@@ -837,7 +918,7 @@ const ItemsList = ({ session, onBack }) => {
                         if (updatedCounts[itemId]) {
                           updatedCounts[itemId] = updatedCounts[itemId].map(count =>
                             count.id === selectedCountId
-                              ? { ...count, countedQty: parseInt(countQuantity) }
+                              ? { ...count, countedQty: calculatedQty }
                               : count
                           );
                         }
@@ -862,7 +943,8 @@ const ItemsList = ({ session, onBack }) => {
                           item_id: selectedItem.id,
                           user_id: user.id,
                           location_id: locationData.id,
-                          counted_qty: parseInt(countQuantity)
+                          counted_qty: calculatedQty,
+                          counted_qty_calculation: countQuantity.trim()
                         })
                         .select()
                         .single();
