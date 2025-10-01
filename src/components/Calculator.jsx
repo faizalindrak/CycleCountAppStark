@@ -38,21 +38,21 @@ const Calculator = ({ value, onChange }) => {
   };
 
   const getButtonClass = (buttonValue) => {
-    const baseClass = "p-3 m-1 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500";
+    const baseClass = "p-3 m-1 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500";
 
     if (buttonValue === 'clear') {
-      return `${baseClass} bg-red-500 text-white hover:bg-red-600 col-span-4`;
+      return `${baseClass} bg-red-500 text-white hover:bg-red-600 col-span-4 font-bold text-lg`;
     }
 
     if (['+', '-', '*', '/'].includes(buttonValue)) {
-      return `${baseClass} bg-blue-500 text-white hover:bg-blue-600`;
+      return `${baseClass} bg-blue-500 text-white hover:bg-blue-600 font-bold text-xl`;
     }
 
     if (buttonValue === 'backspace') {
-      return `${baseClass} bg-orange-500 text-white hover:bg-orange-600`;
+      return `${baseClass} bg-orange-500 text-white hover:bg-orange-600 font-bold text-lg`;
     }
 
-    return `${baseClass} bg-gray-200 text-gray-800 hover:bg-gray-300`;
+    return `${baseClass} bg-gray-200 text-gray-800 hover:bg-gray-300 font-bold text-lg`;
   };
 
   return (

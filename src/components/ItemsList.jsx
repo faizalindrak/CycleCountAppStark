@@ -40,10 +40,19 @@ const ItemsList = ({ session, onBack }) => {
   const [lastSelectedLocation, setLastSelectedLocation] = useState('');
   const [categories, setCategories] = useState([]);
   const [calculatedResult, setCalculatedResult] = useState(0);
+  const [calculationError, setCalculationError] = useState(null);
+  const [errorPosition, setErrorPosition] = useState(null);
 
-  // Safe mathematical expression evaluator
+  // Enhanced mathematical expression evaluator with error detection
   const evaluateExpression = (expression) => {
-    if (!expression || expression.trim() === '' || expression.trim() === '+') return 0;
+    // Clear any previous errors
+    setCalculationError(null);
+    setErrorPosition(null);
+
+    if (!expression || expression.trim() === '' || expression.trim() === '+') {
+      setCalculatedResult(0);
+      return 0;
+    }
 
     try {
       // Remove any potentially dangerous characters and validate
@@ -53,11 +62,61 @@ const ItemsList = ({ session, onBack }) => {
       sanitized = sanitized.replace(/[+\-*/.]+$/, '').trim();
 
       // If nothing left after removing trailing operators, return 0
-      if (!sanitized) return 0;
+      if (!sanitized) {
+        setCalculatedResult(0);
+        return 0;
+      }
+
+      // Check for common error patterns and identify their positions
+      const errorPatterns = [
+        // Invalid operator combinations (same or different operators except ++)
+        { pattern: /\d+\s*[\*\/]\s*[\+\-\*\/]\s*\d+/, message: 'Invalid operator combination', type: 'invalid_combination' },
+        { pattern: /\d+\s*[\+\-]\s*[\*\/]\s*\d+/, message: 'Invalid operator combination', type: 'invalid_combination' },
+
+        // Double operators (except ++)
+        { pattern: /\d+\s*\*\s*\*\s*\d+/, message: 'Double multiplication operator', type: 'double_operator' },
+        { pattern: /\d+\s*\/\s*\/\s*\d+/, message: 'Double division operator', type: 'double_operator' },
+        { pattern: /\d+\s*\-\s*\-\s*\d+/, message: 'Double minus operator', type: 'double_operator' },
+
+        // Multiple trailing operators (real errors)
+        { pattern: /\d+\s*\*{2,}$/, message: 'Multiple trailing multiplication operators', type: 'trailing_operator' },
+        { pattern: /\d+\s*\/+$/, message: 'Trailing division operator', type: 'trailing_operator' },
+        { pattern: /\d+\s*\-{2,}$/, message: 'Multiple trailing minus operators', type: 'trailing_operator' },
+
+        // Leading operators (except +)
+        { pattern: /^\s*\*/, message: 'Leading multiplication operator', type: 'leading_operator' },
+        { pattern: /^\s*\//, message: 'Leading division operator', type: 'leading_operator' },
+
+        // Other errors
+        { pattern: /\(\s*\)/, message: 'Empty parentheses', type: 'empty_parentheses' },
+        { pattern: /\d+\s*\(\s*\d+/, message: 'Missing operator before parentheses', type: 'missing_operator' },
+        { pattern: /\d+\s*\)\s*\d+/, message: 'Missing operator after parentheses', type: 'missing_operator' }
+      ];
+
+      for (const { pattern, message, type } of errorPatterns) {
+        const match = pattern.exec(expression);
+        if (match) {
+          setCalculationError({
+            message: `Calculation error: ${message}`,
+            position: match.index,
+            length: match[0].length,
+            type: type
+          });
+          setCalculatedResult(0);
+          return 0;
+        }
+      }
 
       // Basic validation - ensure we have a valid mathematical expression
       if (!/^[0-9+\-*/.() ]+$/.test(sanitized)) {
-        throw new Error('Invalid characters in expression');
+        setCalculationError({
+          message: 'Invalid characters in expression',
+          position: expression.search(/[^0-9+\-*/.() ]/),
+          length: 1,
+          type: 'invalid_character'
+        });
+        setCalculatedResult(0);
+        return 0;
       }
 
       // Use Function constructor for safer evaluation than eval()
@@ -65,20 +124,51 @@ const ItemsList = ({ session, onBack }) => {
 
       // Ensure result is a valid number
       if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) {
-        throw new Error('Invalid calculation result');
+        setCalculationError({
+          message: 'Invalid calculation result',
+          position: 0,
+          length: expression.length,
+          type: 'calculation_error'
+        });
+        setCalculatedResult(0);
+        return 0;
       }
 
-      return Math.max(0, Math.floor(result)); // Ensure non-negative integer
+      setCalculatedResult(Math.max(0, Math.floor(result))); // Ensure non-negative integer
+      return Math.max(0, Math.floor(result));
     } catch (error) {
       console.error('Error evaluating expression:', error, 'Expression:', expression);
+
+      // Try to identify the error position
+      let errorPos = 0;
+      if (expression) {
+        // Look for common error indicators
+        const operators = ['+', '-', '*', '/'];
+        for (let i = 0; i < expression.length; i++) {
+          if (operators.includes(expression[i])) {
+            // Check if operator is in invalid position
+            if (i === 0 || operators.includes(expression[i-1]) || i === expression.length - 1) {
+              errorPos = i;
+              break;
+            }
+          }
+        }
+      }
+
+      setCalculationError({
+        message: 'Syntax error in expression',
+        position: errorPos,
+        length: 1,
+        type: 'syntax_error'
+      });
+      setCalculatedResult(0);
       return 0;
     }
   };
 
   // Update calculated result whenever countQuantity changes
   useEffect(() => {
-    const result = evaluateExpression(countQuantity);
-    setCalculatedResult(result);
+    evaluateExpression(countQuantity);
   }, [countQuantity]);
 
   useEffect(() => {
@@ -395,7 +485,7 @@ const ItemsList = ({ session, onBack }) => {
   };
 
   const handleSaveCount = async () => {
-    if (!selectedItem || !countLocation || !countQuantity) {
+    if (!selectedItem || !countLocation || !countQuantity || calculationError) {
       return;
     }
 
@@ -482,6 +572,8 @@ const ItemsList = ({ session, onBack }) => {
       setSelectedItem(null);
       setIsEditing(false);
       setSelectedCountId(null);
+      setCalculationError(null);
+      setErrorPosition(null);
     } catch (err) {
       console.error('Error saving count:', err);
       alert('Error saving count: ' + err.message);
@@ -701,6 +793,8 @@ const ItemsList = ({ session, onBack }) => {
                   setShowCountModal(false);
                   setIsEditing(false);
                   setSelectedCountId(null);
+                  setCalculationError(null);
+                  setErrorPosition(null);
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -747,15 +841,24 @@ const ItemsList = ({ session, onBack }) => {
                     value={countQuantity}
                     onChange={(e) => setCountQuantity(e.target.value)}
                     placeholder="Enter expression (e.g., 5*10+5*20)"
-                    className="mt-1 block w-full px-3 py-2 pr-16 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`mt-1 block w-full px-3 py-2 pr-16 rounded-md focus:outline-none focus:ring-2 border-2 ${
+                      calculationError
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-400 focus:ring-blue-500'
+                    }`}
                     required
                   />
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calculator className="h-5 w-5" />
                   </div>
 
+                  {/* Error indicator */}
+                  {calculationError && (
+                    <div className="absolute -top-2 -right-2 w-3 h-3 bg-red-500 rounded-full pointer-events-none"></div>
+                  )}
+
                   {/* Floating result inside input field */}
-                  {countQuantity && (
+                  {countQuantity && !calculationError && (
                     <div className="absolute right-10 top-1/2 transform -translate-y-1/2 pointer-events-none">
                       <div className="bg-green-500 text-white px-2 py-1 rounded text-sm font-bold shadow-md">
                         {calculatedResult}
@@ -763,6 +866,16 @@ const ItemsList = ({ session, onBack }) => {
                     </div>
                   )}
                 </div>
+
+                {/* Error message */}
+                {calculationError && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                    <div className="text-sm text-red-600 flex items-center">
+                      <span className="mr-2">⚠️</span>
+                      <span>{calculationError.message}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Always visible calculator */}
                 <div className="mt-3">
@@ -782,6 +895,8 @@ const ItemsList = ({ session, onBack }) => {
                   setSelectedItem(null);
                   setIsEditing(false);
                   setSelectedCountId(null);
+                  setCalculationError(null);
+                  setErrorPosition(null);
                 }}
                 className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
                 disabled={submitting}
@@ -790,7 +905,7 @@ const ItemsList = ({ session, onBack }) => {
               </button>
               <button
                 onClick={handleSaveCount}
-                disabled={!countLocation || !countQuantity || submitting}
+                disabled={!countLocation || !countQuantity || submitting || calculationError}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 flex items-center space-x-2"
               >
                 {submitting ? (
@@ -818,6 +933,8 @@ const ItemsList = ({ session, onBack }) => {
                   setCountQuantity('');
                   setIsEditing(false);
                   setSelectedCountId(null);
+                  setCalculationError(null);
+                  setErrorPosition(null);
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -865,15 +982,24 @@ const ItemsList = ({ session, onBack }) => {
                     value={countQuantity}
                     onChange={(e) => setCountQuantity(e.target.value)}
                     placeholder="Enter expression (e.g., 5*10+5*20)"
-                    className="mt-1 block w-full px-3 py-2 pr-16 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`mt-1 block w-full px-3 py-2 pr-16 rounded-md focus:outline-none focus:ring-2 border-2 ${
+                      calculationError
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-400 focus:ring-blue-500'
+                    }`}
                     required
                   />
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calculator className="h-5 w-5" />
                   </div>
 
+                  {/* Error indicator */}
+                  {calculationError && (
+                    <div className="absolute -top-2 -right-2 w-3 h-3 bg-red-500 rounded-full pointer-events-none"></div>
+                  )}
+
                   {/* Floating result inside input field */}
-                  {countQuantity && (
+                  {countQuantity && !calculationError && (
                     <div className="absolute right-10 top-1/2 transform -translate-y-1/2 pointer-events-none">
                       <div className="bg-green-500 text-white px-2 py-1 rounded text-sm font-bold shadow-md">
                         {calculatedResult}
@@ -881,6 +1007,16 @@ const ItemsList = ({ session, onBack }) => {
                     </div>
                   )}
                 </div>
+
+                {/* Error message */}
+                {calculationError && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                    <div className="text-sm text-red-600 flex items-center">
+                      <span className="mr-2">⚠️</span>
+                      <span>{calculationError.message}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Always visible calculator */}
                 <div className="mt-3">
@@ -900,6 +1036,10 @@ const ItemsList = ({ session, onBack }) => {
                   setSelectedItem(null);
                   setIsEditing(false);
                   setSelectedCountId(null);
+                  setCalculationError(null);
+                  setErrorPosition(null);
+                  setCalculationError(null);
+                  setErrorPosition(null);
                 }}
                 className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
                 disabled={submitting}
@@ -908,7 +1048,7 @@ const ItemsList = ({ session, onBack }) => {
               </button>
               <button
                 onClick={async () => {
-                  if (!selectedItem || !countLocation || !countQuantity) {
+                  if (!selectedItem || !countLocation || !countQuantity || calculationError) {
                     return;
                   }
 
@@ -1002,7 +1142,7 @@ const ItemsList = ({ session, onBack }) => {
                     setSubmitting(false);
                   }
                 }}
-                disabled={!countLocation || !countQuantity || submitting}
+                disabled={!countLocation || !countQuantity || submitting || calculationError}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 flex items-center space-x-2"
               >
                 {submitting ? (
