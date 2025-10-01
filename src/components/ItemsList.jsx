@@ -809,7 +809,7 @@ const ItemsList = ({ session, onBack }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-lg w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">{isEditing ? 'Edit Item Count' : 'Add Item Count'}</h3>
+              <h3 className="text-base font-bold">{isEditing ? 'Edit Item Count' : 'Add Item Count'}</h3>
               <button
                 onClick={() => {
                   setShowCountModal(false);
@@ -929,7 +929,7 @@ const ItemsList = ({ session, onBack }) => {
                     />
                   </div>
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                    <Calculator className="h-5 w-5" />
+                    <Calculator className="h-4 w-4" />
                   </div>
 
                   {/* Error indicator */}
@@ -1023,9 +1023,8 @@ const ItemsList = ({ session, onBack }) => {
             </div>
 
             <div className="mb-4">
-              <p className="text-sm text-gray-600">SKU: {selectedItem.sku}</p>
+              <p className="text-sm text-gray-600">SKU: {selectedItem.sku} | Code: {selectedItem.item_code}</p>
               <p className="font-medium">{selectedItem.item_name}</p>
-              <p className="text-sm text-gray-500">Code: {selectedItem.item_code}</p>
             </div>
 
             <div className="space-y-4">
@@ -1288,7 +1287,7 @@ const ItemsList = ({ session, onBack }) => {
                 ) : (
                   <Save className="h-4 w-4" />
                 )}
-                <span>Save Count</span>
+                <span>Save</span>
               </button>
             </div>
           </div>

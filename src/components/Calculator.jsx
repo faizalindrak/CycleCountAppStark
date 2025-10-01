@@ -41,7 +41,7 @@ const Calculator = ({ value, onChange }) => {
     const baseClass = "p-3 m-1 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500";
 
     if (buttonValue === 'clear') {
-      return `${baseClass} bg-red-500 text-white hover:bg-red-600 col-span-4 font-bold text-lg`;
+      return `${baseClass} bg-red-500 text-white hover:bg-red-600 col-span-4 font-bold text-base`;
     }
 
     if (['+', '-', '*', '/'].includes(buttonValue)) {
