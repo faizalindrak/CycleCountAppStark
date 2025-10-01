@@ -847,8 +847,10 @@ const ItemsList = ({ session, onBack }) => {
                       value={countQuantity}
                       onChange={(e) => {
                         setCountQuantity(e.target.value);
-                        // Auto-scroll to end
+                        // Auto-resize and scroll
                         setTimeout(() => {
+                          e.target.style.height = 'auto';
+                          e.target.style.height = e.target.scrollHeight + 'px';
                           e.target.scrollTop = e.target.scrollHeight;
                           e.target.scrollLeft = e.target.scrollWidth;
                         }, 0);
@@ -861,7 +863,7 @@ const ItemsList = ({ session, onBack }) => {
                         }, 0);
                       }}
                       placeholder="Enter expression (e.g., 5*10+5*20)"
-                      className={`mt-1 block w-full px-3 py-3 pr-24 rounded-md focus:outline-none focus:ring-2 border-2 font-mono resize-none overflow-hidden ${
+                      className={`mt-1 block w-full px-3 py-3 pr-24 rounded-md focus:outline-none focus:ring-2 border-2 font-mono resize-none overflow-auto ${
                         calculationError
                           ? 'border-red-500 focus:ring-red-500'
                           : 'border-gray-400 focus:ring-blue-500'
@@ -869,18 +871,28 @@ const ItemsList = ({ session, onBack }) => {
                       required
                       rows={1}
                       style={{
-                        minHeight: '3rem',
+                        minHeight: '3.5rem',
+                        maxHeight: '8rem',
                         paddingRight: calculatedResult > 9999 ? '7rem' :
                                     calculatedResult > 999 ? '6rem' :
                                     calculatedResult > 99 ? '5.5rem' :
                                     calculatedResult > 9 ? '5rem' : '6rem',
                         wordBreak: 'break-all',
-                        whiteSpace: 'pre-wrap'
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'break-word'
                       }}
                       onInput={(e) => {
-                        // Auto-resize textarea
+                        // Improved auto-resize with limits
                         e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
+                        const scrollHeight = e.target.scrollHeight;
+                        const maxHeight = 128; // 8rem in pixels
+                        e.target.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+
+                        // Auto-scroll to show cursor
+                        setTimeout(() => {
+                          e.target.scrollTop = e.target.scrollHeight;
+                          e.target.scrollLeft = e.target.scrollWidth;
+                        }, 10);
                       }}
                     />
                   </div>
@@ -1018,8 +1030,10 @@ const ItemsList = ({ session, onBack }) => {
                       value={countQuantity}
                       onChange={(e) => {
                         setCountQuantity(e.target.value);
-                        // Auto-scroll to end
+                        // Auto-resize and scroll
                         setTimeout(() => {
+                          e.target.style.height = 'auto';
+                          e.target.style.height = e.target.scrollHeight + 'px';
                           e.target.scrollTop = e.target.scrollHeight;
                           e.target.scrollLeft = e.target.scrollWidth;
                         }, 0);
@@ -1032,7 +1046,7 @@ const ItemsList = ({ session, onBack }) => {
                         }, 0);
                       }}
                       placeholder="Enter expression (e.g., 5*10+5*20)"
-                      className={`mt-1 block w-full px-3 py-3 pr-24 rounded-md focus:outline-none focus:ring-2 border-2 font-mono resize-none overflow-hidden ${
+                      className={`mt-1 block w-full px-3 py-3 pr-24 rounded-md focus:outline-none focus:ring-2 border-2 font-mono resize-none overflow-auto ${
                         calculationError
                           ? 'border-red-500 focus:ring-red-500'
                           : 'border-gray-400 focus:ring-blue-500'
@@ -1040,18 +1054,28 @@ const ItemsList = ({ session, onBack }) => {
                       required
                       rows={1}
                       style={{
-                        minHeight: '3rem',
+                        minHeight: '3.5rem',
+                        maxHeight: '8rem',
                         paddingRight: calculatedResult > 9999 ? '7rem' :
                                     calculatedResult > 999 ? '6rem' :
                                     calculatedResult > 99 ? '5.5rem' :
                                     calculatedResult > 9 ? '5rem' : '6rem',
                         wordBreak: 'break-all',
-                        whiteSpace: 'pre-wrap'
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'break-word'
                       }}
                       onInput={(e) => {
-                        // Auto-resize textarea
+                        // Improved auto-resize with limits
                         e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
+                        const scrollHeight = e.target.scrollHeight;
+                        const maxHeight = 128; // 8rem in pixels
+                        e.target.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+
+                        // Auto-scroll to show cursor
+                        setTimeout(() => {
+                          e.target.scrollTop = e.target.scrollHeight;
+                          e.target.scrollLeft = e.target.scrollWidth;
+                        }, 10);
                       }}
                     />
                   </div>
