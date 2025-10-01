@@ -18,9 +18,11 @@ import {
   UserPlus,
   UserMinus,
   Download,
-  CheckCircle
+  CheckCircle,
+  Tag
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
+import TagManagement from './TagManagement';
 
 const AdminDashboard = ({ user, signOut }) => {
   const [activeTab, setActiveTab] = useState('sessions');
@@ -179,6 +181,7 @@ const AdminDashboard = ({ user, signOut }) => {
   const tabs = [
     { id: 'sessions', label: 'Sessions', icon: ClipboardList },
     { id: 'items', label: 'Items', icon: Package },
+    { id: 'tags', label: 'Tags', icon: Tag },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'categories', label: 'Categories & Locations', icon: Building },
   ];
@@ -188,6 +191,44 @@ const AdminDashboard = ({ user, signOut }) => {
       await signOut();
     } catch (err) {
       console.error('Sign out error:', err);
+    }
+  };
+
+  // Function to refresh items data when tags are updated
+  const refreshItemsData = async () => {
+    try {
+      console.log('Refreshing items data after tag update...');
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('items')
+        .select('*')
+        .order('item_name');
+
+      if (itemsError) {
+        console.error('Supabase error fetching items:', itemsError);
+        throw itemsError;
+      }
+
+      console.log('Successfully fetched updated items:', itemsData?.length || 0, 'items');
+      setItems(itemsData);
+
+      // Update localStorage cache with fresh data
+      const cached = localStorage.getItem('adminDashboardData');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          parsed.items = itemsData;
+          parsed.timestamp = Date.now();
+          localStorage.setItem('adminDashboardData', JSON.stringify(parsed));
+          console.log('Updated localStorage cache with fresh items data');
+        } catch (e) {
+          console.error('Error updating localStorage cache:', e);
+        }
+      } else {
+        console.log('No existing cache found to update');
+      }
+    } catch (err) {
+      console.error('Error refreshing items data:', err);
+      alert('Error refreshing data: ' + err.message);
     }
   };
 
@@ -259,6 +300,18 @@ const AdminDashboard = ({ user, signOut }) => {
             </div>
             <div style={{ display: activeTab === 'items' ? 'block' : 'none' }}>
               <ItemsManager items={items} setItems={setItems} categories={categories} setCategories={setCategories} onDataChange={fetchAllData} />
+            </div>
+            <div style={{ display: activeTab === 'tags' ? 'block' : 'none' }}>
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold">Tag Management</h3>
+                <p className="text-gray-600 text-sm mt-1">
+                  Manage tags for all items in the system. Select items to add or remove tags in bulk.
+                </p>
+              </div>
+              <TagManagement
+                items={items}
+                onTagsUpdated={refreshItemsData}
+              />
             </div>
             <div style={{ display: activeTab === 'users' ? 'block' : 'none' }}>
               <UsersManager users={users} setUsers={setUsers} onDataChange={fetchAllData} />
@@ -593,6 +646,7 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
     document.body.removeChild(link);
   };
 
+
   const handleBulkUpload = async () => {
     if (!bulkFile) {
       setBulkError('Please select a CSV file');
@@ -693,7 +747,6 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
           </button>
         </div>
       </div>
-
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">

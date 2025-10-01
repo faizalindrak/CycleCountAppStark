@@ -334,6 +334,7 @@ const ItemsList = ({ session, onBack }) => {
     };
   };
 
+
   const handleRealtimeCountChange = async (payload) => {
     const { eventType, new: newRecord, old: oldRecord } = payload;
 
@@ -727,20 +728,35 @@ const ItemsList = ({ session, onBack }) => {
                       {item.item_name}
                     </h3>
                     <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                      <div className="flex items-center space-x-1">
-                        <Package className="h-4 w-4" />
-                        <span>{item.uom}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Tag className="h-4 w-4" />
-                        <span>{item.category}</span>
-                      </div>
-                      {isCounted && (
-                        <span className="font-semibold text-green-600">
-                          Total: {totalCounted} {item.uom}
-                        </span>
-                      )}
-                    </div>
+                       <div className="flex items-center space-x-1">
+                         <Package className="h-4 w-4" />
+                         <span>{item.uom}</span>
+                       </div>
+                       <div className="flex items-center space-x-1">
+                         <Tag className="h-4 w-4" />
+                         <span>{item.category}</span>
+                       </div>
+                       {isCounted && (
+                         <span className="font-semibold text-green-600">
+                           Total: {totalCounted} {item.uom}
+                         </span>
+                       )}
+                     </div>
+
+                     {/* Tags Display */}
+                     {item.tags && item.tags.length > 0 && (
+                       <div className="flex flex-wrap gap-1 mb-3">
+                         {item.tags.map((tag, index) => (
+                           <span
+                             key={index}
+                             className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
+                           >
+                             <Tag className="h-3 w-3" />
+                             {tag}
+                           </span>
+                         ))}
+                       </div>
+                     )}
                   </div>
                   <div className="flex items-center space-x-2">
                     {expandedItems.has(item.id) ? (
