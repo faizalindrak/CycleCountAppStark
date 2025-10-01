@@ -115,16 +115,24 @@ export const AuthProvider = ({ children }) => {
 
   const signUp = useCallback(async (email, password, userData) => {
     try {
+      console.log('Signing up with userData:', userData); // Debug log
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: userData, // This will be stored in user_metadata
+          data: {
+            name: userData.name,
+            username: userData.username,
+            role: userData.role,
+            status: userData.status,
+          },
         },
       });
 
       if (error) throw error;
 
+      console.log('Signup successful:', data); // Debug log
       return { data, error: null };
     } catch (error) {
       console.error('Sign up error:', error);
