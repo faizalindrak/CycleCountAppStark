@@ -839,14 +839,32 @@ const ItemsList = ({ session, onBack }) => {
                   <input
                     type="text"
                     value={countQuantity}
-                    onChange={(e) => setCountQuantity(e.target.value)}
+                    onChange={(e) => {
+                      setCountQuantity(e.target.value);
+                      // Auto-scroll to end to show rightmost content
+                      setTimeout(() => {
+                        e.target.scrollLeft = e.target.scrollWidth;
+                      }, 0);
+                    }}
+                    onFocus={(e) => {
+                      // Ensure cursor is at end when focused
+                      setTimeout(() => {
+                        e.target.scrollLeft = e.target.scrollWidth;
+                      }, 0);
+                    }}
                     placeholder="Enter expression (e.g., 5*10+5*20)"
-                    className={`mt-1 block w-full px-3 py-2 pr-16 rounded-md focus:outline-none focus:ring-2 border-2 ${
+                    className={`mt-1 block w-full px-3 py-2 pr-24 rounded-md focus:outline-none focus:ring-2 border-2 font-mono ${
                       calculationError
                         ? 'border-red-500 focus:ring-red-500'
                         : 'border-gray-400 focus:ring-blue-500'
                     }`}
                     required
+                    style={{
+                      paddingRight: calculatedResult > 9999 ? '7rem' :
+                                  calculatedResult > 999 ? '6rem' :
+                                  calculatedResult > 99 ? '5.5rem' :
+                                  calculatedResult > 9 ? '5rem' : '6rem'
+                    }}
                   />
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calculator className="h-5 w-5" />
@@ -980,14 +998,32 @@ const ItemsList = ({ session, onBack }) => {
                   <input
                     type="text"
                     value={countQuantity}
-                    onChange={(e) => setCountQuantity(e.target.value)}
+                    onChange={(e) => {
+                      setCountQuantity(e.target.value);
+                      // Auto-scroll to end to show rightmost content
+                      setTimeout(() => {
+                        e.target.scrollLeft = e.target.scrollWidth;
+                      }, 0);
+                    }}
+                    onFocus={(e) => {
+                      // Ensure cursor is at end when focused
+                      setTimeout(() => {
+                        e.target.scrollLeft = e.target.scrollWidth;
+                      }, 0);
+                    }}
                     placeholder="Enter expression (e.g., 5*10+5*20)"
-                    className={`mt-1 block w-full px-3 py-2 pr-16 rounded-md focus:outline-none focus:ring-2 border-2 ${
+                    className={`mt-1 block w-full px-3 py-2 pr-24 rounded-md focus:outline-none focus:ring-2 border-2 font-mono ${
                       calculationError
                         ? 'border-red-500 focus:ring-red-500'
                         : 'border-gray-400 focus:ring-blue-500'
                     }`}
                     required
+                    style={{
+                      paddingRight: calculatedResult > 9999 ? '7rem' :
+                                  calculatedResult > 999 ? '6rem' :
+                                  calculatedResult > 99 ? '5.5rem' :
+                                  calculatedResult > 9 ? '5rem' : '6rem'
+                    }}
                   />
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calculator className="h-5 w-5" />
