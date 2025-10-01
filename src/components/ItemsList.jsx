@@ -847,19 +847,41 @@ const ItemsList = ({ session, onBack }) => {
                       value={countQuantity}
                       onChange={(e) => {
                         setCountQuantity(e.target.value);
-                        // Auto-resize and scroll
+                        // Auto-resize and scroll to cursor position
                         setTimeout(() => {
                           e.target.style.height = 'auto';
                           e.target.style.height = e.target.scrollHeight + 'px';
-                          e.target.scrollTop = e.target.scrollHeight;
+                          // Scroll to make cursor visible
+                          const cursorPosition = e.target.selectionStart;
+                          const textBeforeCursor = e.target.value.substring(0, cursorPosition);
+                          const lines = textBeforeCursor.split('\n');
+                          const currentLine = lines.length;
+                          const lineHeight = 24; // Approximate line height
+                          e.target.scrollTop = Math.max(0, (currentLine - 2) * lineHeight);
                           e.target.scrollLeft = e.target.scrollWidth;
                         }, 0);
                       }}
                       onFocus={(e) => {
-                        // Ensure cursor is at end when focused
+                        // Scroll to show cursor position
                         setTimeout(() => {
-                          e.target.scrollTop = e.target.scrollHeight;
+                          const cursorPosition = e.target.selectionStart;
+                          const textBeforeCursor = e.target.value.substring(0, cursorPosition);
+                          const lines = textBeforeCursor.split('\n');
+                          const currentLine = lines.length;
+                          const lineHeight = 24;
+                          e.target.scrollTop = Math.max(0, (currentLine - 2) * lineHeight);
                           e.target.scrollLeft = e.target.scrollWidth;
+                        }, 0);
+                      }}
+                      onClick={(e) => {
+                        // Handle clicks to position cursor correctly
+                        setTimeout(() => {
+                          const cursorPosition = e.target.selectionStart;
+                          const textBeforeCursor = e.target.value.substring(0, cursorPosition);
+                          const lines = textBeforeCursor.split('\n');
+                          const currentLine = lines.length;
+                          const lineHeight = 24;
+                          e.target.scrollTop = Math.max(0, (currentLine - 2) * lineHeight);
                         }, 0);
                       }}
                       placeholder="Enter expression (e.g., 5*10+5*20)"
@@ -887,12 +909,6 @@ const ItemsList = ({ session, onBack }) => {
                         const scrollHeight = e.target.scrollHeight;
                         const maxHeight = 128; // 8rem in pixels
                         e.target.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-
-                        // Auto-scroll to show cursor
-                        setTimeout(() => {
-                          e.target.scrollTop = e.target.scrollHeight;
-                          e.target.scrollLeft = e.target.scrollWidth;
-                        }, 10);
                       }}
                     />
                   </div>
@@ -1030,19 +1046,41 @@ const ItemsList = ({ session, onBack }) => {
                       value={countQuantity}
                       onChange={(e) => {
                         setCountQuantity(e.target.value);
-                        // Auto-resize and scroll
+                        // Auto-resize and scroll to cursor position
                         setTimeout(() => {
                           e.target.style.height = 'auto';
                           e.target.style.height = e.target.scrollHeight + 'px';
-                          e.target.scrollTop = e.target.scrollHeight;
+                          // Scroll to make cursor visible
+                          const cursorPosition = e.target.selectionStart;
+                          const textBeforeCursor = e.target.value.substring(0, cursorPosition);
+                          const lines = textBeforeCursor.split('\n');
+                          const currentLine = lines.length;
+                          const lineHeight = 24; // Approximate line height
+                          e.target.scrollTop = Math.max(0, (currentLine - 2) * lineHeight);
                           e.target.scrollLeft = e.target.scrollWidth;
                         }, 0);
                       }}
                       onFocus={(e) => {
-                        // Ensure cursor is at end when focused
+                        // Scroll to show cursor position
                         setTimeout(() => {
-                          e.target.scrollTop = e.target.scrollHeight;
+                          const cursorPosition = e.target.selectionStart;
+                          const textBeforeCursor = e.target.value.substring(0, cursorPosition);
+                          const lines = textBeforeCursor.split('\n');
+                          const currentLine = lines.length;
+                          const lineHeight = 24;
+                          e.target.scrollTop = Math.max(0, (currentLine - 2) * lineHeight);
                           e.target.scrollLeft = e.target.scrollWidth;
+                        }, 0);
+                      }}
+                      onClick={(e) => {
+                        // Handle clicks to position cursor correctly
+                        setTimeout(() => {
+                          const cursorPosition = e.target.selectionStart;
+                          const textBeforeCursor = e.target.value.substring(0, cursorPosition);
+                          const lines = textBeforeCursor.split('\n');
+                          const currentLine = lines.length;
+                          const lineHeight = 24;
+                          e.target.scrollTop = Math.max(0, (currentLine - 2) * lineHeight);
                         }, 0);
                       }}
                       placeholder="Enter expression (e.g., 5*10+5*20)"
@@ -1070,12 +1108,6 @@ const ItemsList = ({ session, onBack }) => {
                         const scrollHeight = e.target.scrollHeight;
                         const maxHeight = 128; // 8rem in pixels
                         e.target.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-
-                        // Auto-scroll to show cursor
-                        setTimeout(() => {
-                          e.target.scrollTop = e.target.scrollHeight;
-                          e.target.scrollLeft = e.target.scrollWidth;
-                        }, 10);
                       }}
                     />
                   </div>
