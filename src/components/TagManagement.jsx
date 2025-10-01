@@ -37,13 +37,46 @@ const TagManagement = ({ items, onTagsUpdated, session }) => {
     return Array.from(tagSet).sort();
   }, [items]);
 
-  // Filter items by selected tags
+  // Filter items by search term across multiple fields
   const filteredItems = useMemo(() => {
     if (!tagFilter) return items;
 
+    const searchTerm = tagFilter.toLowerCase().trim();
+
     return items.filter(item => {
-      if (!item.tags || !Array.isArray(item.tags)) return false;
-      return item.tags.some(tag => tag.toLowerCase().includes(tagFilter.toLowerCase()));
+      // Search in SKU
+      if (item.sku && item.sku.toLowerCase().includes(searchTerm)) {
+        return true;
+      }
+
+      // Search in item code
+      if (item.item_code && item.item_code.toLowerCase().includes(searchTerm)) {
+        return true;
+      }
+
+      // Search in item name
+      if (item.item_name && item.item_name.toLowerCase().includes(searchTerm)) {
+        return true;
+      }
+
+      // Search in category
+      if (item.category && item.category.toLowerCase().includes(searchTerm)) {
+        return true;
+      }
+
+      // Search in tags
+      if (item.tags && Array.isArray(item.tags)) {
+        if (item.tags.some(tag => tag.toLowerCase().includes(searchTerm))) {
+          return true;
+        }
+      }
+
+      // Search in UOM
+      if (item.uom && item.uom.toLowerCase().includes(searchTerm)) {
+        return true;
+      }
+
+      return false;
     });
   }, [items, tagFilter]);
 
@@ -238,7 +271,7 @@ const TagManagement = ({ items, onTagsUpdated, session }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <input
               type="text"
-              placeholder="Search items by name, SKU, or code..."
+              placeholder="Search by SKU, item code, name, category, UOM, or tags..."
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
