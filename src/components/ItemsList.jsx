@@ -39,7 +39,7 @@ const ItemsList = ({ session, onBack }) => {
   const [selectedCountId, setSelectedCountId] = useState(null);
   const [lastSelectedLocation, setLastSelectedLocation] = useState('');
   const [categories, setCategories] = useState([]);
-  const [showCalculator, setShowCalculator] = useState(false);
+  const [calculatedResult, setCalculatedResult] = useState(0);
 
   // Safe mathematical expression evaluator
   const evaluateExpression = (expression) => {
@@ -69,6 +69,12 @@ const ItemsList = ({ session, onBack }) => {
       return 0;
     }
   };
+
+  // Update calculated result whenever countQuantity changes
+  useEffect(() => {
+    const result = evaluateExpression(countQuantity);
+    setCalculatedResult(result);
+  }, [countQuantity]);
 
   useEffect(() => {
     if (session) {
@@ -387,15 +393,12 @@ const ItemsList = ({ session, onBack }) => {
     try {
       setSubmitting(true);
 
-      // Calculate the result from the expression
-      const calculatedQty = evaluateExpression(countQuantity);
-
       if (isEditing) {
         // Update existing count
         const { error: countError } = await supabase
           .from('counts')
           .update({
-            counted_qty: calculatedQty,
+            counted_qty: calculatedResult,
             counted_qty_calculation: countQuantity.trim()
           })
           .eq('id', selectedCountId);
@@ -409,7 +412,7 @@ const ItemsList = ({ session, onBack }) => {
           if (updatedCounts[itemId]) {
             updatedCounts[itemId] = updatedCounts[itemId].map(count =>
               count.id === selectedCountId
-                ? { ...count, countedQty: calculatedQty }
+                ? { ...count, countedQty: calculatedResult }
                 : count
             );
           }
@@ -434,7 +437,7 @@ const ItemsList = ({ session, onBack }) => {
             item_id: selectedItem.id,
             user_id: user.id,
             location_id: locationData.id,
-            counted_qty: calculatedQty,
+            counted_qty: calculatedResult,
             counted_qty_calculation: countQuantity.trim()
           })
           .select()
@@ -726,35 +729,38 @@ const ItemsList = ({ session, onBack }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Quantity
+                  Quantity Calculation
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={countQuantity}
                     onChange={(e) => setCountQuantity(e.target.value)}
-                    placeholder="Enter quantity or expression (e.g., 5*10+5*20)"
+                    placeholder="Enter expression (e.g., 5*10+5*20)"
                     className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowCalculator(!showCalculator)}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    title="Open Calculator"
-                  >
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calculator className="h-5 w-5" />
-                  </button>
+                  </div>
                 </div>
-                {showCalculator && (
-                  <div className="mt-2">
-                    <CalculatorComponent
-                      value={countQuantity}
-                      onChange={setCountQuantity}
-                      onClose={() => setShowCalculator(false)}
-                    />
+
+                {/* Floating result display */}
+                {countQuantity && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="text-sm text-blue-600">
+                      Result: <span className="font-bold text-blue-800">{calculatedResult}</span>
+                    </div>
                   </div>
                 )}
+
+                {/* Always visible calculator */}
+                <div className="mt-3">
+                  <CalculatorComponent
+                    value={countQuantity}
+                    onChange={setCountQuantity}
+                  />
+                </div>
               </div>
             </div>
 
@@ -841,35 +847,38 @@ const ItemsList = ({ session, onBack }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Quantity
+                  Quantity Calculation
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={countQuantity}
                     onChange={(e) => setCountQuantity(e.target.value)}
-                    placeholder="Enter quantity or expression (e.g., 5*10+5*20)"
+                    placeholder="Enter expression (e.g., 5*10+5*20)"
                     className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowCalculator(!showCalculator)}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    title="Open Calculator"
-                  >
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calculator className="h-5 w-5" />
-                  </button>
+                  </div>
                 </div>
-                {showCalculator && (
-                  <div className="mt-2">
-                    <CalculatorComponent
-                      value={countQuantity}
-                      onChange={setCountQuantity}
-                      onClose={() => setShowCalculator(false)}
-                    />
+
+                {/* Floating result display */}
+                {countQuantity && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="text-sm text-blue-600">
+                      Result: <span className="font-bold text-blue-800">{calculatedResult}</span>
+                    </div>
                   </div>
                 )}
+
+                {/* Always visible calculator */}
+                <div className="mt-3">
+                  <CalculatorComponent
+                    value={countQuantity}
+                    onChange={setCountQuantity}
+                  />
+                </div>
               </div>
             </div>
 
@@ -896,15 +905,12 @@ const ItemsList = ({ session, onBack }) => {
                   try {
                     setSubmitting(true);
 
-                    // Calculate the result from the expression
-                    const calculatedQty = evaluateExpression(countQuantity);
-
                     if (isEditing) {
                       // Update existing count
                       const { error: countError } = await supabase
                         .from('counts')
                         .update({
-                          counted_qty: calculatedQty,
+                          counted_qty: calculatedResult,
                           counted_qty_calculation: countQuantity.trim()
                         })
                         .eq('id', selectedCountId);
@@ -918,7 +924,7 @@ const ItemsList = ({ session, onBack }) => {
                         if (updatedCounts[itemId]) {
                           updatedCounts[itemId] = updatedCounts[itemId].map(count =>
                             count.id === selectedCountId
-                              ? { ...count, countedQty: calculatedQty }
+                              ? { ...count, countedQty: calculatedResult }
                               : count
                           );
                         }
@@ -943,7 +949,7 @@ const ItemsList = ({ session, onBack }) => {
                           item_id: selectedItem.id,
                           user_id: user.id,
                           location_id: locationData.id,
-                          counted_qty: calculatedQty,
+                          counted_qty: calculatedResult,
                           counted_qty_calculation: countQuantity.trim()
                         })
                         .select()

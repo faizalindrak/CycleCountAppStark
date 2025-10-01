@@ -1,7 +1,7 @@
 import React from 'react';
 import { Delete, Divide, Minus, Plus, X } from 'lucide-react';
 
-const Calculator = ({ value, onChange, onClose }) => {
+const Calculator = ({ value, onChange }) => {
   const handleButtonClick = (buttonValue) => {
     if (buttonValue === 'clear') {
       onChange('');
@@ -56,22 +56,7 @@ const Calculator = ({ value, onChange, onClose }) => {
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-lg border">
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-lg font-semibold">Calculator</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="bg-gray-100 p-3 rounded-md min-h-[40px] text-right">
-          <span className="text-lg font-mono">{value || '0'}</span>
-        </div>
-      </div>
-
+    <div className="p-1">
       <div className="grid grid-cols-4 gap-1">
         {buttons.map((row, rowIndex) => (
           <React.Fragment key={rowIndex}>
@@ -93,7 +78,7 @@ const Calculator = ({ value, onChange, onClose }) => {
         ))}
       </div>
 
-      <div className="mt-4 text-xs text-gray-500 text-center">
+      <div className="mt-2 text-xs text-gray-500 text-center">
         Use calculator or type expressions like: 5*10+5*20
       </div>
     </div>
