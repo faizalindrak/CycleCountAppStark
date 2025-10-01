@@ -43,6 +43,12 @@ const ItemsList = ({ session, onBack }) => {
   const [calculationError, setCalculationError] = useState(null);
   const [errorPosition, setErrorPosition] = useState(null);
 
+  // Format number with thousand separators for display
+  const formatNumber = (num) => {
+    if (num === 0) return '0';
+    return num.toLocaleString('en-US');
+  };
+
   // Enhanced mathematical expression evaluator with error detection
   const evaluateExpression = (expression) => {
     // Clear any previous errors
@@ -879,7 +885,7 @@ const ItemsList = ({ session, onBack }) => {
                   {countQuantity && !calculationError && (
                     <div className="absolute right-10 top-1/2 transform -translate-y-1/2 pointer-events-none">
                       <div className="bg-green-500 text-white px-2 py-1 rounded text-sm font-bold shadow-md">
-                        {calculatedResult}
+                        {formatNumber(calculatedResult)}
                       </div>
                     </div>
                   )}
@@ -1038,7 +1044,7 @@ const ItemsList = ({ session, onBack }) => {
                   {countQuantity && !calculationError && (
                     <div className="absolute right-10 top-1/2 transform -translate-y-1/2 pointer-events-none">
                       <div className="bg-green-500 text-white px-2 py-1 rounded text-sm font-bold shadow-md">
-                        {calculatedResult}
+                        {formatNumber(calculatedResult)}
                       </div>
                     </div>
                   )}
