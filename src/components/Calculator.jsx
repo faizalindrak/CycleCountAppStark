@@ -77,10 +77,6 @@ const Calculator = ({ value, onChange }) => {
           </React.Fragment>
         ))}
       </div>
-
-      <div className="mt-2 text-xs text-gray-500 text-center">
-        Use calculator or type expressions like: 5*10+5*20
-      </div>
     </div>
   );
 };

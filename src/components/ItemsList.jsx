@@ -43,11 +43,17 @@ const ItemsList = ({ session, onBack }) => {
 
   // Safe mathematical expression evaluator
   const evaluateExpression = (expression) => {
-    if (!expression || expression.trim() === '') return 0;
+    if (!expression || expression.trim() === '' || expression.trim() === '+') return 0;
 
     try {
       // Remove any potentially dangerous characters and validate
-      const sanitized = expression.replace(/[^0-9+\-*/.() ]/g, '');
+      let sanitized = expression.replace(/[^0-9+\-*/.() ]/g, '');
+
+      // Handle trailing operators by removing them for calculation
+      sanitized = sanitized.replace(/[+\-*/.]+$/, '').trim();
+
+      // If nothing left after removing trailing operators, return 0
+      if (!sanitized) return 0;
 
       // Basic validation - ensure we have a valid mathematical expression
       if (!/^[0-9+\-*/.() ]+$/.test(sanitized)) {
@@ -55,7 +61,6 @@ const ItemsList = ({ session, onBack }) => {
       }
 
       // Use Function constructor for safer evaluation than eval()
-      // This is still potentially dangerous but much safer than direct eval()
       const result = new Function('return ' + sanitized)();
 
       // Ensure result is a valid number
@@ -65,7 +70,7 @@ const ItemsList = ({ session, onBack }) => {
 
       return Math.max(0, Math.floor(result)); // Ensure non-negative integer
     } catch (error) {
-      console.error('Error evaluating expression:', error);
+      console.error('Error evaluating expression:', error, 'Expression:', expression);
       return 0;
     }
   };
@@ -99,11 +104,13 @@ const ItemsList = ({ session, onBack }) => {
       if (existingCount) {
         setIsEditing(true);
         setSelectedCountId(existingCount.id);
-        setCountQuantity(existingCount.countedQty.toString());
+        // Show the stored calculation expression if available, otherwise show the result with + suffix
+        const calculationExpr = existingCount.calculation || existingCount.countedQty.toString();
+        setCountQuantity(calculationExpr.endsWith('+') ? calculationExpr : calculationExpr + '+');
       } else {
         setIsEditing(false);
         setSelectedCountId(null);
-        setCountQuantity('');
+        setCountQuantity('+');
       }
     }
   }, [countLocation, selectedItem, counts]);
@@ -163,6 +170,7 @@ const ItemsList = ({ session, onBack }) => {
         countsByItem[count.item_id].push({
           location: count.locations?.name || 'Unknown',
           countedQty: count.counted_qty,
+          calculation: count.counted_qty_calculation,
           timestamp: count.timestamp,
           id: count.id
         });
@@ -255,6 +263,7 @@ const ItemsList = ({ session, onBack }) => {
             const newCount = {
               location: locationData.name,
               countedQty: newRecord.counted_qty,
+              calculation: newRecord.counted_qty_calculation,
               timestamp: newRecord.timestamp,
               id: newRecord.id
             };
@@ -275,7 +284,7 @@ const ItemsList = ({ session, onBack }) => {
         if (updatedCounts[itemId]) {
           updatedCounts[itemId] = updatedCounts[itemId].map(count =>
             count.id === newRecord.id
-              ? { ...count, countedQty: newRecord.counted_qty, timestamp: newRecord.timestamp }
+              ? { ...count, countedQty: newRecord.counted_qty, calculation: newRecord.counted_qty_calculation, timestamp: newRecord.timestamp }
               : count
           );
         }
@@ -412,7 +421,7 @@ const ItemsList = ({ session, onBack }) => {
           if (updatedCounts[itemId]) {
             updatedCounts[itemId] = updatedCounts[itemId].map(count =>
               count.id === selectedCountId
-                ? { ...count, countedQty: calculatedResult }
+                ? { ...count, countedQty: calculatedResult, calculation: countQuantity.trim() }
                 : count
             );
           }
@@ -457,6 +466,7 @@ const ItemsList = ({ session, onBack }) => {
             const newCountData = {
               location: countLocation,
               countedQty: newCount.counted_qty,
+              calculation: newCount.counted_qty_calculation,
               timestamp: newCount.timestamp,
               id: newCount.id
             };
@@ -737,22 +747,22 @@ const ItemsList = ({ session, onBack }) => {
                     value={countQuantity}
                     onChange={(e) => setCountQuantity(e.target.value)}
                     placeholder="Enter expression (e.g., 5*10+5*20)"
-                    className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="mt-1 block w-full px-3 py-2 pr-16 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calculator className="h-5 w-5" />
                   </div>
-                </div>
 
-                {/* Floating result display */}
-                {countQuantity && (
-                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
-                    <div className="text-sm text-blue-600">
-                      Result: <span className="font-bold text-blue-800">{calculatedResult}</span>
+                  {/* Floating result inside input field */}
+                  {countQuantity && (
+                    <div className="absolute right-10 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <div className="bg-green-500 text-white px-2 py-1 rounded text-sm font-bold shadow-md">
+                        {calculatedResult}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Always visible calculator */}
                 <div className="mt-3">
@@ -855,22 +865,22 @@ const ItemsList = ({ session, onBack }) => {
                     value={countQuantity}
                     onChange={(e) => setCountQuantity(e.target.value)}
                     placeholder="Enter expression (e.g., 5*10+5*20)"
-                    className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="mt-1 block w-full px-3 py-2 pr-16 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calculator className="h-5 w-5" />
                   </div>
-                </div>
 
-                {/* Floating result display */}
-                {countQuantity && (
-                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
-                    <div className="text-sm text-blue-600">
-                      Result: <span className="font-bold text-blue-800">{calculatedResult}</span>
+                  {/* Floating result inside input field */}
+                  {countQuantity && (
+                    <div className="absolute right-10 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <div className="bg-green-500 text-white px-2 py-1 rounded text-sm font-bold shadow-md">
+                        {calculatedResult}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Always visible calculator */}
                 <div className="mt-3">
@@ -924,7 +934,7 @@ const ItemsList = ({ session, onBack }) => {
                         if (updatedCounts[itemId]) {
                           updatedCounts[itemId] = updatedCounts[itemId].map(count =>
                             count.id === selectedCountId
-                              ? { ...count, countedQty: calculatedResult }
+                              ? { ...count, countedQty: calculatedResult, calculation: countQuantity.trim() }
                               : count
                           );
                         }
@@ -969,6 +979,7 @@ const ItemsList = ({ session, onBack }) => {
                           const newCountData = {
                             location: countLocation,
                             countedQty: newCount.counted_qty,
+                            calculation: newCount.counted_qty_calculation,
                             timestamp: newCount.timestamp,
                             id: newCount.id
                           };
