@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Search,
@@ -42,6 +42,43 @@ const ItemsList = ({ session, onBack }) => {
   const [calculatedResult, setCalculatedResult] = useState(0);
   const [calculationError, setCalculationError] = useState(null);
   const [errorPosition, setErrorPosition] = useState(null);
+  const [calcConn, setCalcConn] = useState('idle');
+
+  const calcChannelRef = useRef(null);
+  const lastSenderRef = useRef(null);
+  const clientIdRef = useRef((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const isCalcInputFocusedRef = useRef(false);
+  const lastInputTsRef = useRef(0);
+
+  const getCalcChannelName = (itm) => {
+    if (!session || !itm) return null;
+    return `calc:${session.id}:${itm.id}`;
+  };
+
+  const handleCountQuantityChange = useCallback((newValue) => {
+    setCountQuantity(newValue);
+    // mark local typing timestamp to prevent remote echo causing caret flicker
+    lastInputTsRef.current = Date.now();
+    try {
+      if (calcChannelRef.current && selectedItem) {
+        
+        calcChannelRef.current.send({
+          type: 'broadcast',
+          event: 'calc_update',
+          payload: {
+            expr: newValue,
+            itemId: selectedItem.id,
+            location: countLocation,
+            senderId: user?.id || null,
+            clientId: clientIdRef.current,
+            ts: Date.now()
+          }
+        });
+      }
+    } catch (err) {
+      
+    }
+  }, [selectedItem, countLocation, user]);
 
   // Format number with thousand separators for display
   const formatNumber = (num) => {
@@ -143,7 +180,7 @@ const ItemsList = ({ session, onBack }) => {
       setCalculatedResult(Math.max(0, Math.floor(result))); // Ensure non-negative integer
       return Math.max(0, Math.floor(result));
     } catch (error) {
-      console.error('Error evaluating expression:', error, 'Expression:', expression);
+      
 
       // Try to identify the error position
       let errorPos = 0;
@@ -178,10 +215,12 @@ const ItemsList = ({ session, onBack }) => {
   }, [countQuantity]);
 
   useEffect(() => {
-    if (session) {
-      fetchSessionData();
-      subscribeToCounts();
-    }
+    if (!session) return;
+    fetchSessionData();
+    const unsubscribe = subscribeToCounts();
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [session]);
 
   // Load last selected location from localStorage
@@ -210,6 +249,62 @@ const ItemsList = ({ session, onBack }) => {
       }
     }
   }, [countLocation, selectedItem, counts]);
+
+  // Realtime sync for calculation input (per item across session)
+  useEffect(() => {
+    const isEditorOpen = !!selectedItem;
+    if (!isEditorOpen) {
+      if (calcChannelRef.current) {
+        try { supabase.removeChannel(calcChannelRef.current); } catch {}
+        calcChannelRef.current = null;
+      }
+      setCalcConn('idle');
+      return;
+    }
+
+    const channelName = getCalcChannelName(selectedItem);
+    if (!channelName) return;
+
+    setCalcConn('connecting');
+
+    const ch = supabase.channel(channelName, {
+      config: { broadcast: { ack: true }, presence: { key: clientIdRef.current } }
+    });
+
+    ch.on('broadcast', { event: 'calc_update' }, ({ payload }) => {
+      if (payload?.clientId === clientIdRef.current) return;
+      // Avoid blinking when local user is actively typing: defer remote updates during a short window
+      const now = Date.now();
+      if (isCalcInputFocusedRef.current && now - lastInputTsRef.current < 250) {
+        return;
+      }
+      lastSenderRef.current = payload?.senderId;
+      setCountQuantity(payload?.expr ?? '');
+    });
+
+    ch.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        setCalcConn('subscribed');
+        ch.track({
+          sessionId: session.id,
+          itemId: selectedItem.id,
+          userId: user?.id || null,
+          username: user?.user_metadata?.username || null,
+          clientId: clientIdRef.current
+        }).catch(() => {});
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        setCalcConn('error');
+      }
+    });
+
+    calcChannelRef.current = ch;
+
+    return () => {
+      try { supabase.removeChannel(ch); } catch {}
+      calcChannelRef.current = null;
+      setCalcConn('idle');
+    };
+  }, [selectedItem, session, user]);
 
   const fetchSessionData = async () => {
     try {
@@ -305,12 +400,43 @@ const ItemsList = ({ session, onBack }) => {
         setLocations([]);
       }
     } catch (err) {
-      console.error('Error fetching session data:', err);
+      
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch latest counts for a specific item from DB and update local state
+  const refreshCountsForItem = async (itemId) => {
+    try {
+      const { data: countsData, error } = await supabase
+        .from('counts')
+        .select(`
+          *,
+          locations ( name )
+        `)
+        .eq('session_id', session.id)
+        .eq('item_id', itemId);
+
+      if (error) throw error;
+
+      const updatedList = (countsData || []).map((count) => ({
+        location: count.locations?.name || 'Unknown',
+        countedQty: count.counted_qty,
+        calculation: count.counted_qty_calculation,
+        timestamp: count.timestamp,
+        id: count.id,
+      }));
+
+      setCounts((prev) => ({
+        ...prev,
+        [itemId]: updatedList,
+      }));
+    } catch (e) {
+      
+    }
+  };
+ 
   const subscribeToCounts = () => {
     const subscription = supabase
       .channel(`counts:${session.id}`)
@@ -323,14 +449,20 @@ const ItemsList = ({ session, onBack }) => {
           filter: `session_id=eq.${session.id}`
         },
         (payload) => {
-          console.log('Count change received:', payload);
+          
           handleRealtimeCountChange(payload);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        
+      });
 
     return () => {
-      subscription.unsubscribe();
+      try {
+        subscription.unsubscribe();
+      } catch (e) {
+        
+      }
     };
   };
 
@@ -370,7 +502,7 @@ const ItemsList = ({ session, onBack }) => {
           });
         }
       } catch (error) {
-        console.error('Error handling real-time INSERT:', error);
+        
       }
     } else if (eventType === 'UPDATE' && newRecord) {
       // Update existing count from another user
@@ -422,7 +554,7 @@ const ItemsList = ({ session, onBack }) => {
     });
   }, [items, searchTerm, filterStatus, counts]);
 
-  const handleItemSelect = (item) => {
+  const handleItemSelect = async (item) => {
     setSelectedItem(item);
 
     // Get filtered locations for this item
@@ -436,21 +568,9 @@ const ItemsList = ({ session, onBack }) => {
 
     setCountLocation(defaultLocation);
 
-    // Check if there's already a count for this location
-    const itemCounts = counts[item.id] || [];
-    const existingCount = itemCounts.find(c => c.location === defaultLocation);
-
-    if (existingCount) {
-      setIsEditing(true);
-      setSelectedCountId(existingCount.id);
-      setCountQuantity(existingCount.countedQty.toString());
-    } else {
-      setIsEditing(false);
-      setSelectedCountId(null);
-      setCountQuantity('');
-    }
-
+    // Open modal first, then request fresh counts for this item from DB
     setShowCountModal(true);
+    refreshCountsForItem(item.id);
   };
 
   const handleLocationChange = (newLocation) => {
@@ -463,7 +583,7 @@ const ItemsList = ({ session, onBack }) => {
     }
   };
 
-  const handleItemClick = (item) => {
+  const handleItemClick = async (item) => {
     setSelectedItem(item);
 
     // Get filtered locations for this item
@@ -477,7 +597,9 @@ const ItemsList = ({ session, onBack }) => {
 
     setCountLocation(defaultLocation);
 
+    // Open popup first, then request fresh counts for this item from DB
     setShowCalculationPopup(true);
+    refreshCountsForItem(item.id);
   };
 
   const handleChevronClick = (e, itemId) => {
@@ -582,7 +704,7 @@ const ItemsList = ({ session, onBack }) => {
       setCalculationError(null);
       setErrorPosition(null);
     } catch (err) {
-      console.error('Error saving count:', err);
+      
       alert('Error saving count: ' + err.message);
     } finally {
       setSubmitting(false);
@@ -862,7 +984,7 @@ const ItemsList = ({ session, onBack }) => {
                     <textarea
                       value={countQuantity}
                       onChange={(e) => {
-                        setCountQuantity(e.target.value);
+                        handleCountQuantityChange(e.target.value);
                         // Auto-resize and scroll to cursor position
                         setTimeout(() => {
                           e.target.style.height = 'auto';
@@ -878,6 +1000,7 @@ const ItemsList = ({ session, onBack }) => {
                         }, 0);
                       }}
                       onFocus={(e) => {
+                        isCalcInputFocusedRef.current = true;
                         // Scroll to show cursor position
                         setTimeout(() => {
                           const cursorPosition = e.target.selectionStart;
@@ -900,6 +1023,7 @@ const ItemsList = ({ session, onBack }) => {
                           e.target.scrollTop = Math.max(0, (currentLine - 2) * lineHeight);
                         }, 0);
                       }}
+                      onBlur={() => { isCalcInputFocusedRef.current = false; }}
                       placeholder="Enter expression (e.g., 5*10+5*20)"
                       className={`mt-1 block w-full px-3 py-3 pr-24 rounded-md focus:outline-none focus:ring-2 border-2 font-mono resize-none overflow-auto ${
                         calculationError
@@ -961,7 +1085,7 @@ const ItemsList = ({ session, onBack }) => {
                 <div className="mt-3">
                   <CalculatorComponent
                     value={countQuantity}
-                    onChange={setCountQuantity}
+                    onChange={handleCountQuantityChange}
                   />
                 </div>
               </div>
@@ -1061,7 +1185,7 @@ const ItemsList = ({ session, onBack }) => {
                     <textarea
                       value={countQuantity}
                       onChange={(e) => {
-                        setCountQuantity(e.target.value);
+                        handleCountQuantityChange(e.target.value);
                         // Auto-resize and scroll to cursor position
                         setTimeout(() => {
                           e.target.style.height = 'auto';
@@ -1077,6 +1201,7 @@ const ItemsList = ({ session, onBack }) => {
                         }, 0);
                       }}
                       onFocus={(e) => {
+                        isCalcInputFocusedRef.current = true;
                         // Scroll to show cursor position
                         setTimeout(() => {
                           const cursorPosition = e.target.selectionStart;
@@ -1099,6 +1224,7 @@ const ItemsList = ({ session, onBack }) => {
                           e.target.scrollTop = Math.max(0, (currentLine - 2) * lineHeight);
                         }, 0);
                       }}
+                      onBlur={() => { isCalcInputFocusedRef.current = false; }}
                       placeholder="Enter expression (e.g., 5*10+5*20)"
                       className={`mt-1 block w-full px-3 py-3 pr-24 rounded-md focus:outline-none focus:ring-2 border-2 font-mono resize-none overflow-auto ${
                         calculationError
@@ -1160,7 +1286,7 @@ const ItemsList = ({ session, onBack }) => {
                 <div className="mt-3">
                   <CalculatorComponent
                     value={countQuantity}
-                    onChange={setCountQuantity}
+                    onChange={handleCountQuantityChange}
                   />
                 </div>
               </div>
@@ -1274,7 +1400,7 @@ const ItemsList = ({ session, onBack }) => {
                     setIsEditing(false);
                     setSelectedCountId(null);
                   } catch (err) {
-                    console.error('Error saving count:', err);
+                    
                     alert('Error saving count: ' + err.message);
                   } finally {
                     setSubmitting(false);
