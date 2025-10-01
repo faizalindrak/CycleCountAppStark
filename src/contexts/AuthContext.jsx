@@ -22,19 +22,20 @@ export const AuthProvider = ({ children }) => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          setUser(session.user);
-          setProfile(null); // initially null
-          setLoading(false);
-
-          // Fetch profile asynchronously
-          getCurrentUserProfile().then(userProfile => {
+          // Check profile status before setting user
+          const userProfile = await getCurrentUserProfile();
+          
+          if (!userProfile || userProfile.status !== 'active') {
+            // Sign out immediately if inactive
+            await supabase.auth.signOut();
+            setUser(null);
+            setProfile(null);
+          } else {
+            setUser(session.user);
             setProfile(userProfile);
-          }).catch(error => {
-            console.error('Error fetching user profile:', error);
-          });
-        } else {
-          setLoading(false);
+          }
         }
+        setLoading(false);
       } catch (error) {
         console.error('Error getting initial session:', error);
         setLoading(false);
@@ -45,32 +46,44 @@ export const AuthProvider = ({ children }) => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(prevUser => {
-          const newAuthUser = session?.user;
-
-          // When a user is logged in
-          if (newAuthUser) {
-            // Check if the user is different from the previous one
-            if (prevUser?.id !== newAuthUser.id) {
-              // If it's a different user, reset profile and fetch the new one
-              setProfile(null);
-              getCurrentUserProfile().then(userProfile => {
-                setProfile(userProfile);
-              }).catch(error => {
-                console.error('Error fetching user profile for new user:', error);
-              });
-              return newAuthUser;
-            }
-            // If it's the same user, no need to do anything with the profile
-            return prevUser;
-          }
-
-          // When a user is logged out
+      async (event, session) => {
+        console.log('Auth event:', event, 'Session:', !!session);
+        
+        if (event === 'SIGNED_OUT' || !session) {
+          setUser(null);
           setProfile(null);
-          return null;
-        });
+          setLoading(false);
+          return;
+        }
 
+        // Don't process auth changes during sign in - let signIn handle it
+        if (event === 'SIGNED_IN') {
+          console.log('SIGNED_IN event - skipping (handled by signIn function)');
+          return;
+        }
+
+        // For other events, check profile
+        if (session?.user) {
+          try {
+            const userProfile = await getCurrentUserProfile();
+            
+            if (!userProfile || userProfile.status !== 'active') {
+              console.log('Profile inactive or not found, signing out');
+              await supabase.auth.signOut();
+              setUser(null);
+              setProfile(null);
+            } else {
+              setUser(session.user);
+              setProfile(userProfile);
+            }
+          } catch (error) {
+            console.error('Error in auth state change:', error);
+            await supabase.auth.signOut();
+            setUser(null);
+            setProfile(null);
+          }
+        }
+        
         setLoading(false);
       }
     );
@@ -80,24 +93,32 @@ export const AuthProvider = ({ children }) => {
 
   const signIn = useCallback(async (email, password) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      console.log('Starting sign in...');
+      
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      console.log('Auth result:', { success: !!authData.session, error: authError });
 
-      // Check user status after successful authentication
+      if (authError) throw authError;
+
+      // Check user status immediately after successful authentication
+      console.log('Checking user profile...');
       const userProfile = await getCurrentUserProfile();
+      console.log('Profile fetched:', userProfile);
 
       if (!userProfile) {
-        // If no profile found, sign out and throw error
+        console.log('No profile found, signing out');
         await supabase.auth.signOut();
         throw new Error('User profile not found. Please contact administrator.');
       }
 
+      console.log('Profile status:', userProfile.status);
+
       if (userProfile.status !== 'active') {
-        // If user status is not active, sign out and throw error
+        console.log('Profile is not active, signing out');
         await supabase.auth.signOut();
         const statusMessage = userProfile.status === 'inactive'
           ? 'Your account is currently inactive and cannot be used for login.'
@@ -105,17 +126,25 @@ export const AuthProvider = ({ children }) => {
         throw new Error(`${statusMessage} Please contact your administrator to activate your account before attempting to log in.`);
       }
 
-      // Profile will be set by the auth state change listener
-      return { data, error: null };
+      // Only set user and profile if everything is valid
+      console.log('Setting user and profile - login successful');
+      setUser(authData.user);
+      setProfile(userProfile);
+      
+      return { data: authData, error: null };
     } catch (error) {
-      // Don't log the error here, let the LoginForm handle it
+      console.error('Sign in error:', error);
+      // Make sure to sign out on any error
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfile(null);
       return { data: null, error };
     }
   }, []);
 
   const signUp = useCallback(async (email, password, userData) => {
     try {
-      console.log('Signing up with userData:', userData); // Debug log
+      console.log('Signing up with userData:', userData);
 
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -132,7 +161,7 @@ export const AuthProvider = ({ children }) => {
 
       if (error) throw error;
 
-      console.log('Signup successful:', data); // Debug log
+      console.log('Signup successful:', data);
       return { data, error: null };
     } catch (error) {
       console.error('Sign up error:', error);
@@ -181,7 +210,7 @@ export const AuthProvider = ({ children }) => {
     signOut,
     updateProfile,
     isAdmin: profile?.role === 'admin' || user?.user_metadata?.role === 'admin',
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && !!profile && profile.status === 'active',
   }), [user, profile, loading, signIn, signUp, signOut, updateProfile]);
 
   return (

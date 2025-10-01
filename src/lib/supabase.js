@@ -31,6 +31,7 @@ export const handleSupabaseError = (error) => {
 
 
 // Helper function to get current user profile
+// Helper function to get current user profile
 export const getCurrentUserProfile = async () => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -52,7 +53,8 @@ export const getCurrentUserProfile = async () => {
             id: user.id,
             name: userData.name,
             username: userData.username,
-            role: userData.role || 'counter'
+            role: userData.role || 'counter',
+            status: userData.status || 'inactive' // Make sure status is set
           }])
           .select()
           .single();
