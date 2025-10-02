@@ -48,7 +48,37 @@ const SessionSelection = ({ onSessionSelect }) => {
 
       if (error) throw error;
 
-      setSessions(data || []);
+      // Filter sessions based on time window and date
+      const now = new Date();
+      const currentTime = now.getHours() * 100 + now.getMinutes();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const filteredSessions = (data || []).filter(session => {
+        // Check if session has time window restrictions
+        if (session.start_time && session.end_time) {
+          const startTime = parseInt(session.start_time.replace(':', ''));
+          const endTime = parseInt(session.end_time.replace(':', ''));
+
+          if (currentTime < startTime || currentTime > endTime) {
+            return false; // Outside time window
+          }
+        }
+
+        // Check if session date is in the past
+        if (session.session_date) {
+          const sessionDate = new Date(session.session_date);
+          sessionDate.setHours(0, 0, 0, 0);
+
+          if (sessionDate < today) {
+            return false; // Past session
+          }
+        }
+
+        return true;
+      });
+
+      setSessions(filteredSessions);
     } catch (err) {
       console.error('Error fetching sessions:', err);
       setError('Failed to load sessions');

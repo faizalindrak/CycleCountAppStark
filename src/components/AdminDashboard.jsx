@@ -25,6 +25,7 @@ import {
   Folder
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
+import { createRecurringSessions } from '../lib/sessionUtils';
 import TagManagement from './TagManagement';
 
 const AdminDashboard = ({ user, signOut }) => {
@@ -1855,7 +1856,13 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: session?.name || '',
-    status: session?.status || 'draft'
+    status: session?.status || 'draft',
+    repeat_type: session?.repeat_type || 'one_time',
+    repeat_days: session?.repeat_days || [],
+    repeat_end_date: session?.repeat_end_date || '',
+    start_time: session?.start_time || '',
+    end_time: session?.end_time || '',
+    session_date: session?.session_date || ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1868,8 +1875,16 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
     try {
       const sessionData = {
         name: formData.name,
-        status: formData.status
+        status: formData.status,
+        repeat_type: formData.repeat_type,
+        repeat_days: formData.repeat_days,
+        repeat_end_date: formData.repeat_end_date || null,
+        start_time: formData.start_time || null,
+        end_time: formData.end_time || null,
+        session_date: formData.session_date || null
       };
+
+      let createdSession = null;
 
       if (session) {
         // Update
@@ -1878,16 +1893,25 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
           .update(sessionData)
           .eq('id', session.id);
         if (error) throw error;
+        createdSession = { ...session, ...sessionData };
       } else {
         // Create
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('sessions')
           .insert([{
             ...sessionData,
             type: 'inventory',
             created_by: user.id
-          }]);
+          }])
+          .select()
+          .single();
         if (error) throw error;
+        createdSession = data;
+      }
+
+      // Create recurring sessions if needed
+      if (!session && createdSession && createdSession.repeat_type !== 'one_time') {
+        await createRecurringSessions(createdSession, supabase);
       }
 
       onSave();
@@ -1936,6 +1960,130 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Repeat Type *
+              </label>
+              <select
+                name="repeat_type"
+                value={formData.repeat_type}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="one_time">One Time</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+
+            {formData.repeat_type !== 'one_time' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Repeat Days
+                  </label>
+                  {formData.repeat_type === 'weekly' ? (
+                    <div className="grid grid-cols-7 gap-2">
+                      {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
+                        <label key={day} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.repeat_days.includes(day)}
+                            onChange={(e) => {
+                              const newDays = e.target.checked
+                                ? [...formData.repeat_days, day]
+                                : formData.repeat_days.filter(d => d !== day);
+                              setFormData(prev => ({ ...prev, repeat_days: newDays }));
+                            }}
+                            className="mr-1"
+                          />
+                          <span className="text-xs capitalize">{day.slice(0, 3)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : formData.repeat_type === 'monthly' ? (
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                        <label key={day} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.repeat_days.includes(day.toString())}
+                            onChange={(e) => {
+                              const newDays = e.target.checked
+                                ? [...formData.repeat_days, day.toString()]
+                                : formData.repeat_days.filter(d => d !== day.toString());
+                              setFormData(prev => ({ ...prev, repeat_days: newDays }));
+                            }}
+                            className="mr-1 w-3 h-3"
+                          />
+                          <span className="text-xs">{day}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Daily sessions repeat every day</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Repeat End Date
+                  </label>
+                  <input
+                    type="date"
+                    name="repeat_end_date"
+                    value={formData.repeat_end_date}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty for no end date</p>
+                </div>
+              </>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Session Date
+              </label>
+              <input
+                type="date"
+                name="session_date"
+                value={formData.session_date}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Date when this session occurs (optional)</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Time
+                </label>
+                <input
+                  type="time"
+                  name="start_time"
+                  value={formData.start_time}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Time
+                </label>
+                <input
+                  type="time"
+                  name="end_time"
+                  value={formData.end_time}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             <div>

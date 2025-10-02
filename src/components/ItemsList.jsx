@@ -561,6 +561,32 @@ const ItemsList = ({ session, onBack }) => {
   }, [items, searchTerm, filterStatus, counts]);
 
   const handleItemSelect = async (item) => {
+    // Check if session is within time window
+    if (session.start_time && session.end_time) {
+      const now = new Date();
+      const currentTime = now.getHours() * 100 + now.getMinutes();
+      const startTime = parseInt(session.start_time.replace(':', ''));
+      const endTime = parseInt(session.end_time.replace(':', ''));
+
+      if (currentTime < startTime || currentTime > endTime) {
+        alert(`Counting is only allowed between ${session.start_time} and ${session.end_time}`);
+        return;
+      }
+    }
+
+    // Check if session date is in the past
+    if (session.session_date) {
+      const sessionDate = new Date(session.session_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      sessionDate.setHours(0, 0, 0, 0);
+
+      if (sessionDate < today) {
+        alert('Cannot input counts for past sessions');
+        return;
+      }
+    }
+
     setSelectedItem(item);
 
     // Get filtered locations for this item
@@ -590,6 +616,32 @@ const ItemsList = ({ session, onBack }) => {
   };
 
   const handleItemClick = async (item) => {
+    // Check if session is within time window
+    if (session.start_time && session.end_time) {
+      const now = new Date();
+      const currentTime = now.getHours() * 100 + now.getMinutes();
+      const startTime = parseInt(session.start_time.replace(':', ''));
+      const endTime = parseInt(session.end_time.replace(':', ''));
+
+      if (currentTime < startTime || currentTime > endTime) {
+        alert(`Counting is only allowed between ${session.start_time} and ${session.end_time}`);
+        return;
+      }
+    }
+
+    // Check if session date is in the past
+    if (session.session_date) {
+      const sessionDate = new Date(session.session_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      sessionDate.setHours(0, 0, 0, 0);
+
+      if (sessionDate < today) {
+        alert('Cannot input counts for past sessions');
+        return;
+      }
+    }
+
     setSelectedItem(item);
 
     // Get filtered locations for this item
