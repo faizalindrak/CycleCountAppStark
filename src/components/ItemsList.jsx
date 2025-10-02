@@ -829,15 +829,26 @@ const ItemsList = ({ session, onBack }) => {
                 <option value="counted">Counted</option>
                 <option value="uncounted">Uncounted</option>
               </select>
-              {isMobileDevice() && (
-                <button
-                  onClick={() => setShowScanModal(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
-                >
-                  <QrCode className="h-4 w-4" />
-                  <span>Scan</span>
-                </button>
-              )}
+              <div className="flex gap-2">
+                {isMobileDevice() && (
+                  <button
+                    onClick={() => setShowScanModal(true)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
+                  >
+                    <QrCode className="h-4 w-4" />
+                    <span>Scan</span>
+                  </button>
+                )}
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600 flex items-center justify-center"
+                    title="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
