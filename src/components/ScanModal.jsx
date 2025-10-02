@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Camera, AlertCircle, CheckCircle } from 'lucide-react';
-import {
-  MultiFormatReader,
-  BarcodeFormat,
-  DecodeHintType,
-  RGBLuminanceSource,
-  BinaryBitmap,
-  HybridBinarizer,
-  NotFoundException
-} from '@zxing/library';
+import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { isMobileDevice, hasCameraSupport, getDeviceOrientation, isSecureContext } from '../lib/deviceDetection';
 
 const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
@@ -21,8 +13,6 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
   const streamRef = useRef(null);
-  const canvasRef = useRef(null);
-  const animationFrameRef = useRef(null);
 
   // Update orientation when device orientation changes
   useEffect(() => {
@@ -63,13 +53,6 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     }
   }, [isOpen]);
 
-  // Start frame processing when permission is granted
-  useEffect(() => {
-    if (hasPermission && videoRef.current && !isScanning) {
-      startFrameProcessing();
-    }
-  }, [hasPermission]);
-
   const startScanning = async () => {
     try {
       setError('');
@@ -90,42 +73,53 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
         return;
       }
 
-      // Mobile-optimized camera constraints
-      const videoConstraints = isMobileDevice() ? {
-        facingMode: { exact: 'environment' }, // Use back camera on mobile
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 },
-        focusMode: 'continuous', // Better focus for scanning
-        exposureMode: 'continuous', // Better exposure for scanning
-        whiteBalanceMode: 'continuous' // Better white balance for scanning
-      } : {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 640, max: 1280 },
-        height: { ideal: 480, max: 720 }
-      };
+      // Initialize ZXing BrowserMultiFormatReader
+      const codeReader = new BrowserMultiFormatReader();
+      codeReaderRef.current = codeReader;
 
-      // Request camera permission and stream
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints
-      });
+      // Get available video devices and select back camera for mobile
+      const videoInputDevices = await codeReader.listVideoInputDevices();
 
-      streamRef.current = stream;
+      let selectedDeviceId;
+      if (isMobileDevice() && videoInputDevices.length > 1) {
+        // On mobile, prefer back camera (usually the last one or the one with 'back' in label)
+        const backCamera = videoInputDevices.find(device =>
+          device.label.toLowerCase().includes('back') ||
+          device.label.toLowerCase().includes('environment')
+        ) || videoInputDevices[videoInputDevices.length - 1];
+
+        selectedDeviceId = backCamera.deviceId;
+      } else {
+        selectedDeviceId = videoInputDevices[0]?.deviceId;
+      }
+
+      if (!selectedDeviceId) {
+        setError('No camera found on this device.');
+        setIsScanning(false);
+        return;
+      }
+
       setHasPermission(true);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-
-        // Wait for video to be ready
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().then(() => {
-            startFrameProcessing();
-          }).catch(e => {
-            console.error('Error playing video:', e);
-            setError('Unable to start camera preview.');
-            stopScanning();
-          });
-        };
+      // Start decoding from video device
+      try {
+        await codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
+          if (result) {
+            console.log('Barcode detected:', result);
+            handleScanSuccess(result);
+          }
+          if (err && !(err instanceof NotFoundException)) {
+            console.error('Scanning error:', err);
+            setError('Scanning failed. Please try again.');
+            setIsScanning(false);
+          }
+        });
+      } catch (decodeErr) {
+        console.error('Decode error:', decodeErr);
+        setError('Failed to start scanning. Please try again.');
+        setIsScanning(false);
       }
+
     } catch (err) {
       console.error('Camera access error:', err);
       setIsScanning(false);
@@ -150,93 +144,9 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     }
   };
 
-  const startFrameProcessing = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    // Set canvas size to video dimensions
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const reader = new MultiFormatReader();
-    codeReaderRef.current = reader;
-
-    // Configure hints for better mobile scanning
-     const hints = new Map();
-     const formats = [
-       BarcodeFormat.QR_CODE,
-       BarcodeFormat.CODE_128,
-       BarcodeFormat.EAN_13,
-       BarcodeFormat.EAN_8,
-       BarcodeFormat.CODE_39,
-       BarcodeFormat.CODE_93,
-       BarcodeFormat.UPC_A,
-       BarcodeFormat.UPC_E,
-       BarcodeFormat.DATA_MATRIX
-     ];
-     hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
-     hints.set(DecodeHintType.TRY_HARDER, true);
-     hints.set(DecodeHintType.ALSO_INVERTED, true); // Try inverted colors
-
-    const processFrame = () => {
-      if (!isScanning || !videoRef.current) return;
-
-      try {
-        // Draw current video frame to canvas
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Get image data for ZXing processing
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const luminanceSource = new RGBLuminanceSource(imageData.data, imageData.width, imageData.height);
-        const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
-
-        // Try to decode the barcode
-        try {
-          const result = reader.decode(binaryBitmap, hints);
-          if (result) {
-            handleScanSuccess(result);
-            return;
-          }
-        } catch (decodeErr) {
-          // NotFoundException is expected when no barcode is found
-          if (decodeErr.name !== 'NotFoundException') {
-            console.warn('Decode warning:', decodeErr);
-            // For mobile devices, we might want to be less strict with warnings
-            if (!isMobileDevice()) {
-              console.warn('Decode warning:', decodeErr);
-            }
-          }
-        }
-
-        // Continue processing frames with slight delay for better performance
-         setTimeout(() => {
-           if (isScanning) {
-             animationFrameRef.current = requestAnimationFrame(processFrame);
-           }
-         }, 100); // Small delay to prevent overwhelming the processor
-      } catch (err) {
-        console.error('Frame processing error:', err);
-        if (isScanning) {
-          animationFrameRef.current = requestAnimationFrame(processFrame);
-        }
-      }
-    };
-
-    // Start processing frames
-    processFrame();
-  };
 
   const stopScanning = () => {
     setIsScanning(false);
-
-    // Stop animation frame processing
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
 
     if (codeReaderRef.current) {
       codeReaderRef.current.reset();
@@ -382,12 +292,6 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 muted
               />
 
-              {/* Hidden canvas for frame processing */}
-              <canvas
-                ref={canvasRef}
-                className="hidden"
-              />
-
               {/* Scanning indicator */}
               <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
                 Scanning...
@@ -400,12 +304,6 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 className="w-full h-full object-cover"
                 playsInline
                 muted
-              />
-
-              {/* Hidden canvas for frame processing */}
-              <canvas
-                ref={canvasRef}
-                className="hidden"
               />
 
               {/* Scanning indicator */}
