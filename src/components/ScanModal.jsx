@@ -73,6 +73,23 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
         return;
       }
 
+      // Explicitly request camera permission first
+      try {
+        const permissionStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        // Immediately stop the stream as we'll use ZXing's method
+        permissionStream.getTracks().forEach(track => track.stop());
+      } catch (permErr) {
+        console.error('Permission error:', permErr);
+        if (permErr.name === 'NotAllowedError') {
+          setError('Camera permission denied. Please allow camera access in your browser settings and try again.');
+          setHasPermission(false);
+          setIsScanning(false);
+          return;
+        } else {
+          throw permErr; // Re-throw other errors to be handled below
+        }
+      }
+
       // Initialize ZXing BrowserMultiFormatReader
       const codeReader = new BrowserMultiFormatReader();
       codeReaderRef.current = codeReader;
