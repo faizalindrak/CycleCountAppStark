@@ -325,8 +325,7 @@ const ItemsList = ({ session, onBack }) => {
             item_name,
             uom,
             category,
-            tags,
-            internal_product_code
+            tags
           )
         `)
         .eq('session_id', session.id);

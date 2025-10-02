@@ -10,10 +10,10 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.0",
+    "@zxing/library": "^0.21.3",
     "lucide-react": "^0.477.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-qr-barcode-scanner": "^2.1.15"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

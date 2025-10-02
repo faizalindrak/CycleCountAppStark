@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Camera, AlertCircle, CheckCircle } from 'lucide-react';
-import BarcodeScannerComponent from 'react-qr-barcode-scanner';
+import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { isMobileDevice, hasCameraSupport, getDeviceOrientation } from '../lib/deviceDetection';
 
 const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
@@ -9,6 +9,10 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const [error, setError] = useState('');
   const [hasPermission, setHasPermission] = useState(null);
   const [orientation, setOrientation] = useState('portrait');
+
+  const videoRef = useRef(null);
+  const codeReaderRef = useRef(null);
+  const streamRef = useRef(null);
 
   // Update orientation when device orientation changes
   useEffect(() => {
@@ -28,51 +32,99 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
       setIsScanning(true);
       setHasPermission(null);
     } else {
-      setIsScanning(false);
+      stopScanning();
     }
+
+    return () => {
+      stopScanning();
+    };
   }, [isOpen]);
 
-  // Check camera permissions
+  // Check camera permissions and start scanning
   useEffect(() => {
     if (isOpen && isMobileDevice() && hasCameraSupport()) {
-      checkCameraPermission();
+      startScanning();
     }
   }, [isOpen]);
 
-  const checkCameraPermission = async () => {
+  const startScanning = async () => {
     try {
-      const permissionStatus = await navigator.permissions.query({ name: 'camera' });
-      setHasPermission(permissionStatus.state === 'granted');
+      setError('');
+      setIsScanning(true);
 
-      if (permissionStatus.state === 'denied') {
-        setError('Camera permission denied. Please enable camera access in your browser settings.');
-        return;
+      // Request camera permission
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment', // Use back camera on mobile
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+
+        // Initialize ZXing scanner
+        const codeReader = new BrowserMultiFormatReader();
+        codeReaderRef.current = codeReader;
+
+        // Start continuous scanning
+        const result = await codeReader.decodeOnceFromStream(stream, videoRef.current);
+
+        if (result) {
+          handleScanSuccess(result);
+        }
       }
     } catch (err) {
-      // Permissions API not supported, assume we need to request
-      setHasPermission(null);
+      console.error('Camera access error:', err);
+      if (err.name === 'NotAllowedError') {
+        setError('Camera permission denied. Please allow camera access to scan product codes.');
+        setHasPermission(false);
+      } else if (err.name === 'NotFoundError') {
+        setError('No camera found on this device.');
+      } else {
+        setError('Unable to access camera. Please check camera permissions.');
+      }
+      setIsScanning(false);
+      onScanError && onScanError(err.message);
     }
   };
 
-  const handleScanResult = (err, result) => {
-    if (result) {
-      setScanResult(result.text);
-      setIsScanning(false);
+  const stopScanning = () => {
+    setIsScanning(false);
 
-      // Parse the scanned result to extract internal_product_code
-      const parsedCode = parseScannedCode(result.text);
-
-      if (parsedCode) {
-        onScanSuccess(parsedCode, result.text);
-      } else {
-        setError('Invalid product code format. Expected format: [8-digit prefix]JI4ACO-GCAS17BK04');
-        onScanError && onScanError('Invalid format');
-      }
+    if (codeReaderRef.current) {
+      codeReaderRef.current.reset();
+      codeReaderRef.current = null;
     }
 
-    if (err && err.name !== 'NotAllowedError') {
-      setError('Scanning error occurred. Please try again.');
-      onScanError && onScanError(err.message);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const handleScanSuccess = (result) => {
+    const scannedText = result.text;
+    setScanResult(scannedText);
+    setIsScanning(false);
+    stopScanning();
+
+    // Parse the scanned result to extract internal_product_code
+    const parsedCode = parseScannedCode(scannedText);
+
+    if (parsedCode) {
+      onScanSuccess(parsedCode, scannedText);
+    } else {
+      setError('Invalid product code format. Expected format: [8-digit prefix]JI4ACO-GCAS17BK04');
+      onScanError && onScanError('Invalid format');
     }
   };
 
@@ -103,7 +155,7 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   };
 
   const handleClose = () => {
-    setIsScanning(false);
+    stopScanning();
     setScanResult('');
     setError('');
     onClose();
@@ -112,7 +164,7 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const handleRetry = () => {
     setScanResult('');
     setError('');
-    setIsScanning(true);
+    startScanning();
   };
 
   if (!isOpen) return null;
@@ -159,7 +211,7 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 Please allow camera access to scan product codes
               </p>
               <button
-                onClick={checkCameraPermission}
+                onClick={startScanning}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               >
                 Request Permission
@@ -177,24 +229,24 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 </p>
               </div>
 
-              {/* Scanner component */}
+              {/* Camera viewfinder */}
               <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '300px' }}>
-                <BarcodeScannerComponent
-                  width="100%"
-                  height="100%"
-                  onUpdate={handleScanResult}
-                  facingMode="environment" // Use back camera on mobile
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-cover"
+                  playsInline
+                  muted
                 />
 
                 {/* Scanning overlay */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-48 h-24 border-2 border-white border-dashed rounded-lg opacity-50"></div>
                 </div>
-              </div>
 
-              {/* Loading indicator */}
-              <div className="flex justify-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                {/* Scanning indicator */}
+                <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+                  Scanning...
+                </div>
               </div>
             </div>
           ) : scanResult ? (
