@@ -15,7 +15,8 @@ import {
   ChevronDown,
   ChevronUp,
   Tag,
-  Calculator
+  Calculator,
+  Bookmark
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import CalculatorComponent from './Calculator';
@@ -833,10 +834,10 @@ const ItemsList = ({ session, onBack }) => {
               >
                 <div
                   onClick={() => handleItemClick(item)}
-                  className="p-4 hover:bg-gray-50 cursor-pointer flex justify-between items-start"
+                  className="p-3 hover:bg-gray-50 cursor-pointer flex justify-between items-start"
                 >
                   <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
+                    <div className="flex items-center space-x-2 mb-1">
                       <span className="font-semibold text-gray-900">{item.sku}</span>
                       <span className="text-gray-500">|</span>
                       <span className="text-gray-600">{item.item_code}</span>
@@ -846,16 +847,16 @@ const ItemsList = ({ session, onBack }) => {
                         <XCircle className="h-5 w-5 text-gray-400" />
                       )}
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">
                       {item.item_name}
                     </h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
+                    <div className="flex items-center space-x-4 text-sm text-gray-500 mb-2">
                        <div className="flex items-center space-x-1">
                          <Package className="h-4 w-4" />
                          <span>{item.uom}</span>
                        </div>
                        <div className="flex items-center space-x-1">
-                         <Tag className="h-4 w-4" />
+                         <Bookmark className="h-4 w-4" />
                          <span>{item.category}</span>
                        </div>
                        {isCounted && (
@@ -865,20 +866,6 @@ const ItemsList = ({ session, onBack }) => {
                        )}
                      </div>
 
-                     {/* Tags Display */}
-                     {item.tags && item.tags.length > 0 && (
-                       <div className="flex flex-wrap gap-1 mb-3">
-                         {item.tags.map((tag, index) => (
-                           <span
-                             key={index}
-                             className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
-                           >
-                             <Tag className="h-3 w-3" />
-                             {tag}
-                           </span>
-                         ))}
-                       </div>
-                     )}
                   </div>
                   <div className="flex items-center space-x-2">
                     {expandedItems.has(item.id) ? (
@@ -895,7 +882,7 @@ const ItemsList = ({ session, onBack }) => {
                   </div>
                 </div>
                 {expandedItems.has(item.id) && (
-                  <div className="p-4 border-t">
+                  <div className="p-3 border-t">
                     {isCounted && (
                       <div>
                         <div className="flex justify-between items-center mb-1">
@@ -903,7 +890,7 @@ const ItemsList = ({ session, onBack }) => {
                             Total Counted: {totalCounted} {item.uom}
                           </h4>
                         </div>
-                        <ul className="space-y-1 text-sm">
+                        <ul className="space-y-0.5 text-sm">
                           {itemCounts.map((count, index) => (
                             <li key={index} className="flex items-center bg-gray-50 p-1.5 rounded">
                               <MapPin className="h-4 w-4 text-gray-500 mr-2" />
