@@ -9,7 +9,6 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const [error, setError] = useState('');
   const [hasPermission, setHasPermission] = useState(null);
   const [orientation, setOrientation] = useState('portrait');
-  const [showStartButton, setShowStartButton] = useState(true);
 
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
@@ -41,21 +40,17 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     };
   }, [isOpen]);
 
-  // Reset state when modal opens/closes
+  // Check camera permissions and start scanning
   useEffect(() => {
-    if (isOpen) {
-      setScanResult('');
-      setError('');
-      setIsScanning(false);
-      setHasPermission(null);
-      setShowStartButton(true);
-    } else {
-      stopScanning();
+    if (isOpen && isMobileDevice()) {
+      if (hasCameraSupport()) {
+        // Small delay to ensure modal is fully rendered
+        setTimeout(() => startScanning(), 100);
+      } else {
+        setError('Camera not supported on this device.');
+        setIsScanning(false);
+      }
     }
-
-    return () => {
-      stopScanning();
-    };
   }, [isOpen]);
 
   const startScanning = async () => {
@@ -221,12 +216,6 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const handleRetry = () => {
     setScanResult('');
     setError('');
-    setShowStartButton(true);
-    setHasPermission(null);
-  };
-
-  const handleStartScanning = () => {
-    setShowStartButton(false);
     startScanning();
   };
 
@@ -292,21 +281,6 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               >
                 Request Permission
-              </button>
-            </div>
-          ) : showStartButton && hasPermission !== false ? (
-            <div className="text-center py-8">
-              <Camera className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-              <p className="text-gray-600 mb-2">Ready to scan product codes</p>
-              <p className="text-sm text-gray-500 mb-6">
-                Click the button below to start the camera and scan a product code
-              </p>
-              <button
-                onClick={handleStartScanning}
-                className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 flex items-center gap-2 mx-auto"
-              >
-                <Camera className="h-5 w-5" />
-                Start Scanning
               </button>
             </div>
           ) : (hasPermission === null && !isScanning) || (hasPermission === true && !isScanning) ? (
