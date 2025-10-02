@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Camera, AlertCircle, CheckCircle } from 'lucide-react';
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import {
+  MultiFormatReader,
+  BarcodeFormat,
+  DecodeHintType,
+  RGBLuminanceSource,
+  BinaryBitmap,
+  HybridBinarizer,
+  NotFoundException
+} from '@zxing/library';
 import { isMobileDevice, hasCameraSupport, getDeviceOrientation, isSecureContext } from '../lib/deviceDetection';
 
 const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
@@ -13,6 +21,8 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
   const streamRef = useRef(null);
+  const canvasRef = useRef(null);
+  const animationFrameRef = useRef(null);
 
   // Update orientation when device orientation changes
   useEffect(() => {
@@ -72,13 +82,23 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
         return;
       }
 
+      // Mobile-optimized camera constraints
+      const videoConstraints = isMobileDevice() ? {
+        facingMode: { exact: 'environment' }, // Use back camera on mobile
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        focusMode: 'continuous', // Better focus for scanning
+        exposureMode: 'continuous', // Better exposure for scanning
+        whiteBalanceMode: 'continuous' // Better white balance for scanning
+      } : {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 640, max: 1280 },
+        height: { ideal: 480, max: 720 }
+      };
+
       // Request camera permission and stream
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' }, // Use back camera on mobile
-          width: { ideal: 640, max: 1280 },
-          height: { ideal: 480, max: 720 }
-        }
+        video: videoConstraints
       });
 
       streamRef.current = stream;
@@ -89,30 +109,14 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
         // Wait for video to be ready
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(e => {
+          videoRef.current.play().then(() => {
+            startFrameProcessing();
+          }).catch(e => {
             console.error('Error playing video:', e);
             setError('Unable to start camera preview.');
             stopScanning();
           });
         };
-
-        // Initialize ZXing scanner
-        const codeReader = new BrowserMultiFormatReader();
-        codeReaderRef.current = codeReader;
-
-        // Start scanning with proper error handling
-        try {
-          const result = await codeReader.decodeOnceFromStream(stream, videoRef.current);
-          if (result) {
-            handleScanSuccess(result);
-          }
-        } catch (scanErr) {
-          if (scanErr.name !== 'NotFoundException') {
-            console.error('Scanning error:', scanErr);
-            setError('Scanning failed. Please try again.');
-            setIsScanning(false);
-          }
-        }
       }
     } catch (err) {
       console.error('Camera access error:', err);
@@ -126,7 +130,11 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
       } else if (err.name === 'NotReadableError') {
         setError('Camera is already in use by another application.');
       } else if (err.name === 'OverconstrainedError') {
-        setError('Camera doesn\'t support the requested settings.');
+        setError('Camera doesn\'t support the requested settings. Try refreshing the page.');
+      } else if (err.name === 'SecurityError') {
+        setError('Camera access blocked for security reasons. Please check site permissions.');
+      } else if (err.name === 'AbortError') {
+        setError('Camera access was interrupted. Please try again.');
       } else {
         setError(`Camera error: ${err.message || 'Unable to access camera.'}`);
       }
@@ -134,8 +142,78 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     }
   };
 
+  const startFrameProcessing = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    // Set canvas size to video dimensions
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const reader = new MultiFormatReader();
+    codeReaderRef.current = reader;
+
+    // Configure hints for better mobile scanning
+    const hints = new Map();
+    const formats = [BarcodeFormat.QR_CODE, BarcodeFormat.CODE_128, BarcodeFormat.EAN_13, BarcodeFormat.EAN_8];
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+    hints.set(DecodeHintType.TRY_HARDER, true);
+
+    const processFrame = () => {
+      if (!isScanning || !videoRef.current) return;
+
+      try {
+        // Draw current video frame to canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Get image data for ZXing processing
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const luminanceSource = new RGBLuminanceSource(imageData.data, imageData.width, imageData.height);
+        const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
+
+        // Try to decode the barcode
+        try {
+          const result = reader.decode(binaryBitmap, hints);
+          if (result) {
+            handleScanSuccess(result);
+            return;
+          }
+        } catch (decodeErr) {
+          // NotFoundException is expected when no barcode is found
+          if (decodeErr.name !== 'NotFoundException') {
+            console.warn('Decode warning:', decodeErr);
+            // For mobile devices, we might want to be less strict with warnings
+            if (!isMobileDevice()) {
+              console.warn('Decode warning:', decodeErr);
+            }
+          }
+        }
+
+        // Continue processing frames
+        animationFrameRef.current = requestAnimationFrame(processFrame);
+      } catch (err) {
+        console.error('Frame processing error:', err);
+        if (isScanning) {
+          animationFrameRef.current = requestAnimationFrame(processFrame);
+        }
+      }
+    };
+
+    // Start processing frames
+    processFrame();
+  };
+
   const stopScanning = () => {
     setIsScanning(false);
+
+    // Stop animation frame processing
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
 
     if (codeReaderRef.current) {
       codeReaderRef.current.reset();
@@ -292,11 +370,22 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
               {/* Scanning instructions */}
               <div className="text-center">
                 <p className="text-sm text-gray-600 mb-2">
-                  Point your camera at the product code
+                  {isMobileDevice()
+                    ? 'Point your camera at the product code and hold steady'
+                    : 'Point your camera at the product code'
+                  }
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 mb-2">
                   Supports formats: JI4ACO-GCAS17BK04 or 25000100JI4ACO-GCAS17BK04
                 </p>
+                {isMobileDevice() && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-2 text-xs text-blue-800">
+                    <p className="font-medium">Mobile Tips:</p>
+                    <p>• Use the back camera for better quality</p>
+                    <p>• Ensure good lighting</p>
+                    <p>• Hold device steady</p>
+                  </div>
+                )}
               </div>
 
               {/* Camera viewfinder */}
@@ -306,6 +395,12 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                   className="w-full h-full object-cover"
                   playsInline
                   muted
+                />
+
+                {/* Hidden canvas for frame processing */}
+                <canvas
+                  ref={canvasRef}
+                  className="hidden"
                 />
 
                 {/* Scanning overlay */}
