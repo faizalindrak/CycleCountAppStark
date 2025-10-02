@@ -54,13 +54,21 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   useEffect(() => {
     if (isOpen && isMobileDevice()) {
       if (hasCameraSupport()) {
-        startScanning();
+        // Small delay to ensure modal is fully rendered
+        setTimeout(() => startScanning(), 100);
       } else {
         setError('Camera not supported on this device.');
         setIsScanning(false);
       }
     }
   }, [isOpen]);
+
+  // Start frame processing when permission is granted
+  useEffect(() => {
+    if (hasPermission && videoRef.current && !isScanning) {
+      startFrameProcessing();
+    }
+  }, [hasPermission]);
 
   const startScanning = async () => {
     try {
@@ -157,10 +165,21 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     codeReaderRef.current = reader;
 
     // Configure hints for better mobile scanning
-    const hints = new Map();
-    const formats = [BarcodeFormat.QR_CODE, BarcodeFormat.CODE_128, BarcodeFormat.EAN_13, BarcodeFormat.EAN_8];
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
-    hints.set(DecodeHintType.TRY_HARDER, true);
+     const hints = new Map();
+     const formats = [
+       BarcodeFormat.QR_CODE,
+       BarcodeFormat.CODE_128,
+       BarcodeFormat.EAN_13,
+       BarcodeFormat.EAN_8,
+       BarcodeFormat.CODE_39,
+       BarcodeFormat.CODE_93,
+       BarcodeFormat.UPC_A,
+       BarcodeFormat.UPC_E,
+       BarcodeFormat.DATA_MATRIX
+     ];
+     hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+     hints.set(DecodeHintType.TRY_HARDER, true);
+     hints.set(DecodeHintType.ALSO_INVERTED, true); // Try inverted colors
 
     const processFrame = () => {
       if (!isScanning || !videoRef.current) return;
@@ -192,8 +211,12 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
           }
         }
 
-        // Continue processing frames
-        animationFrameRef.current = requestAnimationFrame(processFrame);
+        // Continue processing frames with slight delay for better performance
+         setTimeout(() => {
+           if (isScanning) {
+             animationFrameRef.current = requestAnimationFrame(processFrame);
+           }
+         }, 100); // Small delay to prevent overwhelming the processor
       } catch (err) {
         console.error('Frame processing error:', err);
         if (isScanning) {
@@ -350,68 +373,44 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 Request Permission
               </button>
             </div>
-          ) : hasPermission === null && !isScanning ? (
-            <div className="text-center py-8">
-              <Camera className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-              <p className="text-gray-600 mb-2">Ready to scan</p>
-              <p className="text-sm text-gray-500 mb-4">
-                Click the button below to start scanning
-              </p>
-              <button
-                onClick={startScanning}
-                className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 flex items-center gap-2 mx-auto"
-              >
-                <Camera className="h-5 w-5" />
-                Start Scanning
-              </button>
+          ) : (hasPermission === null && !isScanning) || (hasPermission === true && !isScanning) ? (
+            <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                playsInline
+                muted
+              />
+
+              {/* Hidden canvas for frame processing */}
+              <canvas
+                ref={canvasRef}
+                className="hidden"
+              />
+
+              {/* Scanning indicator */}
+              <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+                Scanning...
+              </div>
             </div>
           ) : isScanning ? (
-            <div className="space-y-4">
-              {/* Scanning instructions */}
-              <div className="text-center">
-                <p className="text-sm text-gray-600 mb-2">
-                  {isMobileDevice()
-                    ? 'Point your camera at the product code and hold steady'
-                    : 'Point your camera at the product code'
-                  }
-                </p>
-                <p className="text-xs text-gray-500 mb-2">
-                  Supports formats: JI4ACO-GCAS17BK04 or 25000100JI4ACO-GCAS17BK04
-                </p>
-                {isMobileDevice() && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-2 text-xs text-blue-800">
-                    <p className="font-medium">Mobile Tips:</p>
-                    <p>• Use the back camera for better quality</p>
-                    <p>• Ensure good lighting</p>
-                    <p>• Hold device steady</p>
-                  </div>
-                )}
-              </div>
+            <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                playsInline
+                muted
+              />
 
-              {/* Camera viewfinder */}
-              <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '300px' }}>
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-cover"
-                  playsInline
-                  muted
-                />
+              {/* Hidden canvas for frame processing */}
+              <canvas
+                ref={canvasRef}
+                className="hidden"
+              />
 
-                {/* Hidden canvas for frame processing */}
-                <canvas
-                  ref={canvasRef}
-                  className="hidden"
-                />
-
-                {/* Scanning overlay */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-48 h-24 border-2 border-white border-dashed rounded-lg opacity-50"></div>
-                </div>
-
-                {/* Scanning indicator */}
-                <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
-                  Scanning...
-                </div>
+              {/* Scanning indicator */}
+              <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+                Scanning...
               </div>
             </div>
           ) : scanResult ? (
