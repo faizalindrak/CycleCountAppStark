@@ -43,9 +43,7 @@ export const hasCameraSupport = () => {
   // Check if getUserMedia is available (camera access)
   return !!(
     navigator.mediaDevices &&
-    navigator.mediaDevices.getUserMedia &&
-    window.MediaStreamTrack &&
-    window.MediaStreamTrack.getSources
+    navigator.mediaDevices.getUserMedia
   );
 };
 
@@ -63,4 +61,12 @@ export const getDeviceOrientation = () => {
   if (orientation.includes('portrait')) return 'portrait';
   if (orientation.includes('landscape')) return 'landscape';
   return 'unknown';
+};
+
+/**
+ * Checks if the page is served over HTTPS (required for camera access)
+ * @returns {boolean} true if HTTPS or localhost, false otherwise
+ */
+export const isSecureContext = () => {
+  return location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 };

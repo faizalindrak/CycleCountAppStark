@@ -80,7 +80,7 @@ const AdminDashboard = ({ user, signOut }) => {
       // Fetch all data in parallel for better performance
       const [sessionsRes, itemsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
         supabase.from('sessions').select(`*, session_users (user_id)`).order('created_date', { ascending: false }),
-        supabase.from('items').select('*').order('item_name'),
+        supabase.from('items').select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at').order('item_name'),
         supabase.from('categories').select('*').order('name'),
         supabase.from('location_usage').select('*').order('name'),
         supabase.from('profiles').select('*').order('name')
@@ -200,7 +200,7 @@ const AdminDashboard = ({ user, signOut }) => {
       console.log('Refreshing items data after tag update...');
       const { data: itemsData, error: itemsError } = await supabase
         .from('items')
-        .select('*')
+        .select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at')
         .order('item_name');
 
       if (itemsError) {
@@ -396,7 +396,8 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
           items (
             id,
             sku,
-            item_name
+            item_name,
+            internal_product_code
           )
         `)
         .eq('session_id', session.id);
@@ -436,12 +437,13 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
         profileMap[profile.id] = profile.name;
       });
 
-      const csvContent = "data:text/csv;charset=utf-8,Session,SKU,Item Name,Location,Counted Qty,User,Timestamp\n";
+      const csvContent = "data:text/csv;charset=utf-8,Session,SKU,Item Name,Internal Product Code,Location,Counted Qty,User,Timestamp\n";
 
       const reportData = countsData.map(count => ({
         sessionName: session.name,
         sku: count.items?.sku || '',
         itemName: count.items?.item_name || '',
+        internalProductCode: count.items?.internal_product_code || '',
         location: count.locations?.name || '',
         quantity: count.counted_qty,
         userName: profileMap[count.user_id] || '',
@@ -449,7 +451,7 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
       }));
 
       const csvRows = reportData.map(row =>
-        `${row.sessionName},"${row.sku}","${row.itemName}",${row.location},${row.quantity},"${row.userName}","${row.timestamp}"`
+        `${row.sessionName},"${row.sku}","${row.itemName}","${row.internalProductCode}",${row.location},${row.quantity},"${row.userName}","${row.timestamp}"`
       ).join('\n');
 
       const finalContent = csvContent + csvRows;
@@ -633,8 +635,8 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
   };
 
   const downloadTemplate = () => {
-    const csvContent = "data:text/csv;charset=utf-8,SKU,Item Code,Item Name,Category,UOM,Tags\n";
-    const sampleRow = "SAMPLE001,SAMPLE001,Sample Item,Electronics,Pcs,tag1;tag2\n";
+    const csvContent = "data:text/csv;charset=utf-8,SKU,Item Code,Item Name,Internal Product Code,Category,UOM,Tags\n";
+    const sampleRow = "SAMPLE001,SAMPLE001,Sample Item,JI4ACO-GCAS17BK04,Electronics,Pcs,tag1;tag2\n";
     const finalContent = csvContent + sampleRow;
 
     const encodedUri = encodeURI(finalContent);
@@ -661,12 +663,12 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
       const rows = text.split('\n').filter(row => row.trim());
       const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
 
-      // Expected headers: SKU,Item Code,Item Name,Category,UOM,Tags
-      const expectedHeaders = ['SKU', 'Item Code', 'Item Name', 'Category', 'UOM', 'Tags'];
+      // Expected headers: SKU,Item Code,Item Name,Internal Product Code,Category,UOM,Tags
+      const expectedHeaders = ['SKU', 'Item Code', 'Item Name', 'Internal Product Code', 'Category', 'UOM', 'Tags'];
       const headerMatch = expectedHeaders.every(h => headers.includes(h));
 
       if (!headerMatch) {
-        throw new Error('CSV must have headers: SKU, Item Code, Item Name, Category, UOM, Tags');
+        throw new Error('CSV must have headers: SKU, Item Code, Item Name, Internal Product Code, Category, UOM, Tags');
       }
 
       const dataRows = rows.slice(1);
@@ -676,11 +678,11 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
         const row = dataRows[i];
         const cols = row.split(',').map(col => col.trim().replace(/"/g, ''));
 
-        if (cols.length !== 6) {
-          throw new Error(`Row ${i + 2}: Invalid number of columns`);
+        if (cols.length !== 7) {
+          throw new Error(`Row ${i + 2}: Invalid number of columns (expected 7)`);
         }
 
-        const [sku, itemCode, itemName, category, uom, tags] = cols;
+        const [sku, itemCode, itemName, internalProductCode, category, uom, tags] = cols;
 
         if (!sku || !itemCode || !itemName || !category || !uom) {
           throw new Error(`Row ${i + 2}: Required fields missing`);
@@ -696,6 +698,7 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
           sku,
           item_code: itemCode,
           item_name: itemName,
+          internal_product_code: internalProductCode || null,
           category,
           uom,
           tags: tags ? tags.split(';').map(tag => tag.trim()).filter(tag => tag) : []
@@ -759,6 +762,9 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
                 Item Name
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Internal Product Code
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Category
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -782,6 +788,9 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {item.item_name}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                  {item.internal_product_code || '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {item.category}
@@ -821,7 +830,7 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <p className="text-sm text-gray-600">
-                  Upload a CSV file with columns: SKU, Item Code, Item Name, Category, UOM, Tags (multiple tags separated by semicolons)
+                  Upload a CSV file with columns: SKU, Item Code, Item Name, Internal Product Code, Category, UOM, Tags (multiple tags separated by semicolons)
                 </p>
                 <button
                   onClick={downloadTemplate}
@@ -1603,7 +1612,7 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       // Fetch all items
       const { data: allItems, error: itemsError } = await supabase
         .from('items')
-        .select('id, sku, item_code, item_name, category, tags')
+        .select('id, sku, item_code, item_name, internal_product_code, category, tags')
         .order('item_name');
 
       if (itemsError) throw itemsError;
@@ -1711,6 +1720,7 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
     item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.item_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.internal_product_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.tags && item.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
   );
@@ -1765,7 +1775,7 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
                         <div>
                           <p className="font-medium text-gray-900">{item.item_name}</p>
                           <p className="text-sm text-gray-500">
-                            SKU: {item.sku} | Code: {item.item_code} | Category: {item.category}
+                            SKU: {item.sku} | Code: {item.item_code} | Product Code: {item.internal_product_code || 'Not set'} | Category: {item.category}
                             {item.tags && item.tags.length > 0 && ` | Tags: ${item.tags.join(', ')}`}
                           </p>
                         </div>
@@ -1795,7 +1805,7 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
                         <div>
                           <p className="font-medium text-gray-900">{item.item_name}</p>
                           <p className="text-sm text-gray-500">
-                            SKU: {item.sku} | Code: {item.item_code} | Category: {item.category}
+                            SKU: {item.sku} | Code: {item.item_code} | Product Code: {item.internal_product_code || 'Not set'} | Category: {item.category}
                             {item.tags && item.tags.length > 0 && ` | Tags: ${item.tags.join(', ')}`}
                           </p>
                         </div>
@@ -1971,6 +1981,7 @@ const ItemEditor = React.memo(({ item, categories, onClose, onSave }) => {
     item_name: item?.item_name || '',
     category: item?.category || '',
     uom: item?.uom || '',
+    internal_product_code: item?.internal_product_code || '',
     tags: item?.tags?.join(', ') || ''
   });
   const [loading, setLoading] = useState(false);
@@ -1988,6 +1999,7 @@ const ItemEditor = React.memo(({ item, categories, onClose, onSave }) => {
         item_name: formData.item_name,
         category: formData.category,
         uom: formData.uom,
+        internal_product_code: formData.internal_product_code,
         tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
       };
 
@@ -2107,6 +2119,24 @@ const ItemEditor = React.memo(({ item, categories, onClose, onSave }) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Internal Product Code
+            </label>
+            <input
+              type="text"
+              name="internal_product_code"
+              value={formData.internal_product_code}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., JI4ACO-GCAS17BK04"
+              maxLength="20"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Maximum 20 characters, used for barcode scanning (optional)
+            </p>
           </div>
 
           <div>

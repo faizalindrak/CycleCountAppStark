@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Camera, AlertCircle, CheckCircle } from 'lucide-react';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
-import { isMobileDevice, hasCameraSupport, getDeviceOrientation } from '../lib/deviceDetection';
+import { isMobileDevice, hasCameraSupport, getDeviceOrientation, isSecureContext } from '../lib/deviceDetection';
 
 const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const [scanResult, setScanResult] = useState('');
@@ -29,7 +29,7 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     if (isOpen) {
       setScanResult('');
       setError('');
-      setIsScanning(true);
+      setIsScanning(false);
       setHasPermission(null);
     } else {
       stopScanning();
@@ -42,8 +42,13 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
   // Check camera permissions and start scanning
   useEffect(() => {
-    if (isOpen && isMobileDevice() && hasCameraSupport()) {
-      startScanning();
+    if (isOpen && isMobileDevice()) {
+      if (hasCameraSupport()) {
+        startScanning();
+      } else {
+        setError('Camera not supported on this device.');
+        setIsScanning(false);
+      }
     }
   }, [isOpen]);
 
@@ -51,44 +56,80 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     try {
       setError('');
       setIsScanning(true);
+      setHasPermission(null); // Reset permission state
 
-      // Request camera permission
+      // Check if running in secure context (HTTPS required for camera)
+      if (!isSecureContext()) {
+        setError('Camera requires HTTPS. Please access the application over a secure connection.');
+        setIsScanning(false);
+        return;
+      }
+
+      // Check if camera permissions are available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError('Camera not supported on this device.');
+        setIsScanning(false);
+        return;
+      }
+
+      // Request camera permission and stream
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment', // Use back camera on mobile
-          width: { ideal: 640 },
-          height: { ideal: 480 }
+          facingMode: { ideal: 'environment' }, // Use back camera on mobile
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 }
         }
       });
 
       streamRef.current = stream;
+      setHasPermission(true);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+
+        // Wait for video to be ready
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(e => {
+            console.error('Error playing video:', e);
+            setError('Unable to start camera preview.');
+            stopScanning();
+          });
+        };
 
         // Initialize ZXing scanner
         const codeReader = new BrowserMultiFormatReader();
         codeReaderRef.current = codeReader;
 
-        // Start continuous scanning
-        const result = await codeReader.decodeOnceFromStream(stream, videoRef.current);
-
-        if (result) {
-          handleScanSuccess(result);
+        // Start scanning with proper error handling
+        try {
+          const result = await codeReader.decodeOnceFromStream(stream, videoRef.current);
+          if (result) {
+            handleScanSuccess(result);
+          }
+        } catch (scanErr) {
+          if (scanErr.name !== 'NotFoundException') {
+            console.error('Scanning error:', scanErr);
+            setError('Scanning failed. Please try again.');
+            setIsScanning(false);
+          }
         }
       }
     } catch (err) {
       console.error('Camera access error:', err);
-      if (err.name === 'NotAllowedError') {
-        setError('Camera permission denied. Please allow camera access to scan product codes.');
-        setHasPermission(false);
-      } else if (err.name === 'NotFoundError') {
-        setError('No camera found on this device.');
-      } else {
-        setError('Unable to access camera. Please check camera permissions.');
-      }
       setIsScanning(false);
+
+      if (err.name === 'NotAllowedError') {
+        setError('Camera permission denied. Please allow camera access in your browser settings and try again.');
+        setHasPermission(false);
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setError('No camera found on this device.');
+      } else if (err.name === 'NotReadableError') {
+        setError('Camera is already in use by another application.');
+      } else if (err.name === 'OverconstrainedError') {
+        setError('Camera doesn\'t support the requested settings.');
+      } else {
+        setError(`Camera error: ${err.message || 'Unable to access camera.'}`);
+      }
       onScanError && onScanError(err.message);
     }
   };
@@ -170,7 +211,7 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   if (!isOpen) return null;
 
   const isMobile = isMobileDevice();
-  const hasCamera = hasCameraSupport();
+  const hasCamera = hasCameraSupport() && isSecureContext();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -200,8 +241,22 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
           ) : !hasCamera ? (
             <div className="text-center py-8">
               <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <p className="text-gray-600 mb-2">Camera not supported</p>
-              <p className="text-sm text-gray-500">Your device doesn't support camera access</p>
+              <p className="text-gray-600 mb-2">
+                {!isSecureContext() ? 'HTTPS Required' : 'Camera not supported'}
+              </p>
+              <p className="text-sm text-gray-500 mb-4">
+                {!isSecureContext()
+                  ? 'Camera access requires a secure connection (HTTPS). Please access the application over HTTPS.'
+                  : 'Your device doesn\'t support camera access or the page is not served over HTTPS.'
+                }
+              </p>
+              {!isSecureContext() && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+                  <p className="font-medium">To enable camera access:</p>
+                  <p>• Use HTTPS instead of HTTP</p>
+                  <p>• Or access via localhost for development</p>
+                </div>
+              )}
             </div>
           ) : hasPermission === false ? (
             <div className="text-center py-8">
@@ -215,6 +270,21 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               >
                 Request Permission
+              </button>
+            </div>
+          ) : hasPermission === null && !isScanning ? (
+            <div className="text-center py-8">
+              <Camera className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+              <p className="text-gray-600 mb-2">Ready to scan</p>
+              <p className="text-sm text-gray-500 mb-4">
+                Click the button below to start scanning
+              </p>
+              <button
+                onClick={startScanning}
+                className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 flex items-center gap-2 mx-auto"
+              >
+                <Camera className="h-5 w-5" />
+                Start Scanning
               </button>
             </div>
           ) : isScanning ? (
