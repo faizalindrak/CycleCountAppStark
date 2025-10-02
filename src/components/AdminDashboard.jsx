@@ -19,7 +19,10 @@ import {
   UserMinus,
   Download,
   CheckCircle,
-  Tag
+  Tag,
+  Hash,
+  Code,
+  Folder
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
 import TagManagement from './TagManagement';
@@ -1775,8 +1778,12 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
                         <div>
                           <p className="font-medium text-gray-900">{item.item_name}</p>
                           <p className="text-sm text-gray-500">
-                            SKU: {item.sku} | Code: {item.item_code} | Product Code: {item.internal_product_code || 'Not set'} | Category: {item.category}
-                            {item.tags && item.tags.length > 0 && ` | Tags: ${item.tags.join(', ')}`}
+                            <Hash className="h-4 w-4 inline mr-1" />
+                            {item.sku}
+                            <Hash className="h-4 w-4 inline mr-1 ml-2" />
+                            {item.item_code}
+                            <Folder className="h-4 w-4 inline mr-1 ml-2" />
+                            {item.category}
                           </p>
                         </div>
                         <button
@@ -1805,8 +1812,12 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
                         <div>
                           <p className="font-medium text-gray-900">{item.item_name}</p>
                           <p className="text-sm text-gray-500">
-                            SKU: {item.sku} | Code: {item.item_code} | Product Code: {item.internal_product_code || 'Not set'} | Category: {item.category}
-                            {item.tags && item.tags.length > 0 && ` | Tags: ${item.tags.join(', ')}`}
+                            <Hash className="h-4 w-4 inline mr-1" />
+                            {item.sku}
+                            <Hash className="h-4 w-4 inline mr-1 ml-2" />
+                            {item.item_code}
+                            <Folder className="h-4 w-4 inline mr-1 ml-2" />
+                            {item.category}
                           </p>
                         </div>
                         <button
