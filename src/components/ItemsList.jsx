@@ -19,7 +19,9 @@ import {
   Bookmark
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { isMobileDevice } from '../lib/deviceDetection';
 import CalculatorComponent from './Calculator';
+import ScanModal from './ScanModal';
 
 const ItemsList = ({ session, onBack }) => {
   const { user } = useAuth();
@@ -44,6 +46,7 @@ const ItemsList = ({ session, onBack }) => {
   const [calculationError, setCalculationError] = useState(null);
   const [errorPosition, setErrorPosition] = useState(null);
   const [calcConn, setCalcConn] = useState('idle');
+  const [showScanModal, setShowScanModal] = useState(false);
 
   const calcChannelRef = useRef(null);
   const lastSenderRef = useRef(null);
@@ -322,7 +325,8 @@ const ItemsList = ({ session, onBack }) => {
             item_name,
             uom,
             category,
-            tags
+            tags,
+            internal_product_code
           )
         `)
         .eq('session_id', session.id);
@@ -544,7 +548,8 @@ const ItemsList = ({ session, onBack }) => {
       const matchesSearch =
         item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.item_code.toLowerCase().includes(searchTerm.toLowerCase());
+        item.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.internal_product_code && item.internal_product_code.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const itemCounts = counts[item.id] || [];
       const isCounted = itemCounts.length > 0;
@@ -705,11 +710,38 @@ const ItemsList = ({ session, onBack }) => {
       setCalculationError(null);
       setErrorPosition(null);
     } catch (err) {
-      
+
       alert('Error saving count: ' + err.message);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleScanSuccess = (parsedCode, originalScan) => {
+    // Set the parsed code to search term to filter items
+    setSearchTerm(parsedCode);
+
+    // Find the item with matching internal_product_code
+    const matchingItem = items.find(item =>
+      item.internal_product_code === parsedCode
+    );
+
+    if (matchingItem) {
+      // If item found and it's unique (only one match), open count modal directly
+      handleItemSelect(matchingItem);
+    } else {
+      // If no item found or multiple matches, just show in search results
+      // User can then select the appropriate item manually
+      console.log('Scanned code not found in items:', parsedCode);
+    }
+
+    // Close scan modal
+    setShowScanModal(false);
+  };
+
+  const handleScanError = (error) => {
+    console.error('Scan error:', error);
+    // Error is already handled in ScanModal component
   };
 
 
@@ -778,14 +810,23 @@ const ItemsList = ({ session, onBack }) => {
         <div className="bg-white p-4 rounded-lg shadow mb-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
               <input
                 type="text"
                 placeholder="Search SKU, name, or code..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-500 text-white p-1 rounded-md hover:bg-gray-600 flex items-center justify-center"
+                  title="Clear search"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
             <div className="flex gap-2">
               <select
@@ -797,23 +838,15 @@ const ItemsList = ({ session, onBack }) => {
                 <option value="counted">Counted</option>
                 <option value="uncounted">Uncounted</option>
               </select>
-              <button
-                onClick={() => {
-                  // Mock QR scan functionality
-                  const uncountedItems = filteredItems.filter(item =>
-                    !counts[item.id] || counts[item.id].length === 0
-                  );
-                  if (uncountedItems.length > 0) {
-                    handleItemSelect(uncountedItems[0]);
-                  } else {
-                    alert('All items have been counted!');
-                  }
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
-              >
-                <QrCode className="h-4 w-4" />
-                <span>Scan</span>
-              </button>
+              {isMobileDevice() && (
+                <button
+                  onClick={() => setShowScanModal(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
+                >
+                  <QrCode className="h-4 w-4" />
+                  <span>Scan</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1406,6 +1439,14 @@ const ItemsList = ({ session, onBack }) => {
           </div>
         </div>
       )}
+
+      {/* Scan Modal */}
+      <ScanModal
+        isOpen={showScanModal}
+        onClose={() => setShowScanModal(false)}
+        onScanSuccess={handleScanSuccess}
+        onScanError={handleScanError}
+      />
     </div>
   );
 };
