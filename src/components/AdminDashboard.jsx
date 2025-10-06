@@ -25,7 +25,7 @@ import {
   Folder
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
-import { createRecurringSessions } from '../lib/sessionUtils';
+import { createRecurringSessions, syncRecurringSessions } from '../lib/sessionUtils';
 import TagManagement from './TagManagement';
 
 const AdminDashboard = ({ user, signOut }) => {
@@ -1912,6 +1912,11 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
       // Create recurring sessions if needed
       if (!session && createdSession && createdSession.repeat_type !== 'one_time') {
         await createRecurringSessions(createdSession, supabase);
+      }
+
+      // Sync recurring sessions if this is an existing session with parent_session_id
+      if (session && session.parent_session_id) {
+        await syncRecurringSessions(session.id, supabase);
       }
 
       onSave();

@@ -37,7 +37,8 @@ const SessionSelection = ({ onSessionSelect }) => {
             user_id
           )
         `)
-        .neq('status', 'completed');
+        .neq('status', 'completed')
+        .neq('status', 'draft');
 
       // If user is not admin, only show sessions they're assigned to
       if (profile.role !== 'admin') {
