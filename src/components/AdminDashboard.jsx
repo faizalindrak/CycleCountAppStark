@@ -1873,9 +1873,10 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
     setError('');
 
     try {
+      // For repeat sessions, force status to draft
       const sessionData = {
         name: formData.name,
-        status: formData.status,
+        status: formData.repeat_type !== 'one_time' ? 'draft' : formData.status,
         repeat_type: formData.repeat_type,
         repeat_days: formData.repeat_days,
         repeat_end_date: formData.repeat_end_date || null,
@@ -2102,11 +2103,22 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
+                {formData.repeat_type === 'one_time' ? (
+                  <>
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </>
+                ) : (
+                  <option value="draft">Draft</option>
+                )}
               </select>
+              {formData.repeat_type !== 'one_time' && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Repeat sessions must start as draft. Recurring sessions will be created automatically.
+                </p>
+              )}
             </div>
 
             <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
