@@ -68,7 +68,13 @@ export const createRecurringSessions = async (baseSession, supabase) => {
       }
 
       if (shouldCreate) {
-        const sessionName = `${baseSession.name} - ${currentDate.toLocaleDateString()}`;
+        const dayName = currentDate.toLocaleDateString('id-ID', { weekday: 'long' });
+        const dateFormatted = currentDate.toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+        const sessionName = `${baseSession.name} - ${dayName} ${dateFormatted}`;
 
         // Check if session already exists for this date
         const { data: existingSession } = await supabase

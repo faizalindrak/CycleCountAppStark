@@ -1860,10 +1860,17 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
     repeat_type: session?.repeat_type || 'one_time',
     repeat_days: session?.repeat_days || [],
     repeat_end_date: session?.repeat_end_date || '',
-    start_time: session?.start_time || '',
-    end_time: session?.end_time || '',
+    start_time: session?.start_time || '00:00',
+    end_time: session?.end_time || '23:59',
     session_date: session?.session_date || ''
   });
+
+  // Auto-adjust status when repeat_type changes
+  useEffect(() => {
+    if (formData.repeat_type !== 'one_time' && formData.status !== 'draft') {
+      setFormData(prev => ({ ...prev, status: 'draft' }));
+    }
+  }, [formData.repeat_type, formData.status]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -1873,7 +1880,12 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
     setError('');
 
     try {
-      // For repeat sessions, force status to draft
+      // For repeat sessions, force status to draft and validate required fields
+      if (formData.repeat_type !== 'one_time' && !formData.repeat_end_date) {
+        setError('Repeat End Date is required for repeat sessions');
+        return;
+      }
+
       const sessionData = {
         name: formData.name,
         status: formData.repeat_type !== 'one_time' ? 'draft' : formData.status,
@@ -2037,7 +2049,7 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Repeat End Date
+                    Repeat End Date *
                   </label>
                   <input
                     type="date"
@@ -2045,8 +2057,9 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
                     value={formData.repeat_end_date}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
-                  <p className="text-xs text-gray-500 mt-1">Leave empty for no end date</p>
+                  <p className="text-xs text-gray-500 mt-1">Required: When should the repeating sessions stop?</p>
                 </div>
               </>
             )}
@@ -2077,6 +2090,7 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">Default: 00:00 (12:00 AM)</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2089,6 +2103,7 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">Default: 23:59 (11:59 PM)</p>
               </div>
             </div>
 
