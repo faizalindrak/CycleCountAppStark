@@ -25,7 +25,7 @@ import {
   Folder
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
-import { createRecurringSessions, syncRecurringSessions } from '../lib/sessionUtils';
+import { createRecurringSessions, syncRecurringSessions, syncParentToChildren } from '../lib/sessionUtils';
 import TagManagement from './TagManagement';
 
 const AdminDashboard = ({ user, signOut }) => {
@@ -1475,6 +1475,16 @@ const UserAssignmentModal = React.memo(({ session, onClose, onSave }) => {
         setAvailableUsers(prev => prev.filter(user => user.id !== userId));
         setAssignedUsers(prev => [...prev, userToMove].sort((a, b) => a.name.localeCompare(b.name)));
       }
+
+      // If this is a parent session (no parent_session_id), sync changes to child sessions
+      if (!session.parent_session_id) {
+        try {
+          await syncParentToChildren(session.id, supabase);
+          console.log('[USER ASSIGNMENT] Synced parent session changes to child sessions');
+        } catch (syncError) {
+          console.error('[USER ASSIGNMENT] Error syncing to child sessions:', syncError);
+        }
+      }
     } catch (err) {
       console.error('Error assigning user:', err);
     } finally {
@@ -1498,6 +1508,16 @@ const UserAssignmentModal = React.memo(({ session, onClose, onSave }) => {
       if (userToMove) {
         setAssignedUsers(prev => prev.filter(user => user.id !== userId));
         setAvailableUsers(prev => [...prev, userToMove].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+
+      // If this is a parent session (no parent_session_id), sync changes to child sessions
+      if (!session.parent_session_id) {
+        try {
+          await syncParentToChildren(session.id, supabase);
+          console.log('[USER UNASSIGNMENT] Synced parent session changes to child sessions');
+        } catch (syncError) {
+          console.error('[USER UNASSIGNMENT] Error syncing to child sessions:', syncError);
+        }
       }
     } catch (err) {
       console.error('Error unassigning user:', err);
@@ -1659,6 +1679,16 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
         setAvailableItems(prev => prev.filter(item => item.id !== itemId));
         setSelectedItems(prev => [...prev, itemToMove]);
       }
+
+      // If this is a parent session (no parent_session_id), sync changes to child sessions
+      if (!session.parent_session_id) {
+        try {
+          await syncParentToChildren(session.id, supabase);
+          console.log('[ITEM SELECTION] Synced parent session changes to child sessions');
+        } catch (syncError) {
+          console.error('[ITEM SELECTION] Error syncing to child sessions:', syncError);
+        }
+      }
     } catch (err) {
       console.error('Error selecting item:', err);
     } finally {
@@ -1682,6 +1712,16 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       if (itemToMove) {
         setSelectedItems(prev => prev.filter(item => item.id !== itemId));
         setAvailableItems(prev => [...prev, itemToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      }
+
+      // If this is a parent session (no parent_session_id), sync changes to child sessions
+      if (!session.parent_session_id) {
+        try {
+          await syncParentToChildren(session.id, supabase);
+          console.log('[ITEM DESELECTION] Synced parent session changes to child sessions');
+        } catch (syncError) {
+          console.error('[ITEM DESELECTION] Error syncing to child sessions:', syncError);
+        }
       }
     } catch (err) {
       console.error('Error deselecting item:', err);
@@ -1713,6 +1753,16 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
 
       // Clear search term after adding all
       setSearchTerm('');
+
+      // If this is a parent session (no parent_session_id), sync changes to child sessions
+      if (!session.parent_session_id) {
+        try {
+          await syncParentToChildren(session.id, supabase);
+          console.log('[ITEM BULK ADD] Synced parent session changes to child sessions');
+        } catch (syncError) {
+          console.error('[ITEM BULK ADD] Error syncing to child sessions:', syncError);
+        }
+      }
     } catch (err) {
       console.error('Error adding all filtered items:', err);
     } finally {
@@ -2118,20 +2168,14 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                {formData.repeat_type === 'one_time' ? (
-                  <>
-                    <option value="draft">Draft</option>
-                    <option value="active">Active</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </>
-                ) : (
-                  <option value="draft">Draft</option>
-                )}
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
               </select>
               {formData.repeat_type !== 'one_time' && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Repeat sessions must start as draft. Recurring sessions will be created automatically.
+                  Repeat sessions default to draft status but can be changed. Recurring sessions will be created automatically.
                 </p>
               )}
             </div>

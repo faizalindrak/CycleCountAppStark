@@ -5,12 +5,19 @@
 export const createRecurringSessions = async (baseSession, supabase) => {
   const { repeat_type, repeat_days, repeat_end_date, session_date } = baseSession;
 
+  console.log('[CREATE RECURRING] Starting with base session:', {
+    id: baseSession.id,
+    name: baseSession.name,
+    repeat_type,
+    session_date
+  });
+
   if (repeat_type === 'one_time') {
-    return; // No recurring sessions to create
+    console.log('[CREATE RECURRING] One-time session, skipping recurring creation');
+    return;
   }
 
   try {
-    // First, get the items and users assigned to the base session
     const [sessionItemsRes, sessionUsersRes] = await Promise.all([
       supabase
         .from('session_items')
@@ -28,16 +35,31 @@ export const createRecurringSessions = async (baseSession, supabase) => {
     const sessionItems = sessionItemsRes.data || [];
     const sessionUsers = sessionUsersRes.data || [];
 
+    console.log(`[CREATE RECURRING] Base session has ${sessionItems.length} items and ${sessionUsers.length} users`);
+
     const sessionsToCreate = [];
     const baseDate = session_date ? new Date(session_date) : new Date();
     const endDate = repeat_end_date ? new Date(repeat_end_date) : null;
+    
+    baseDate.setHours(0, 0, 0, 0);
 
-    // Generate sessions for the next 30 days (or until end date)
-    const maxDays = endDate ? Math.ceil((endDate - baseDate) / (1000 * 60 * 60 * 24)) : 30;
+    const startDate = new Date(baseDate);
+    startDate.setDate(startDate.getDate() + 1);
 
-    for (let i = 1; i <= maxDays; i++) {
-      const currentDate = new Date(baseDate);
-      currentDate.setDate(baseDate.getDate() + i);
+    console.log(`[CREATE RECURRING] Base date: ${baseDate.toISOString().split('T')[0]}`);
+    console.log(`[CREATE RECURRING] Start date: ${startDate.toISOString().split('T')[0]}`);
+    console.log(`[CREATE RECURRING] End date: ${endDate ? endDate.toISOString().split('T')[0] : 'none'}`);
+
+    const maxDays = endDate ? Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1 : 30;
+    console.log(`[CREATE RECURRING] Will check ${maxDays} days`);
+
+    for (let i = 0; i < maxDays; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + i);
+
+      if (endDate && currentDate > endDate) {
+        break;
+      }
 
       let shouldCreate = false;
 
@@ -51,7 +73,6 @@ export const createRecurringSessions = async (baseSession, supabase) => {
             const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
             shouldCreate = repeat_days.includes(dayName);
           } else {
-            // If no specific days selected, repeat every week on the same day
             shouldCreate = currentDate.getDay() === baseDate.getDay();
           }
           break;
@@ -61,7 +82,6 @@ export const createRecurringSessions = async (baseSession, supabase) => {
             const dayOfMonth = currentDate.getDate();
             shouldCreate = repeat_days.includes(dayOfMonth.toString());
           } else {
-            // If no specific days selected, repeat on the same day of month
             shouldCreate = currentDate.getDate() === baseDate.getDate();
           }
           break;
@@ -76,93 +96,80 @@ export const createRecurringSessions = async (baseSession, supabase) => {
         });
         const sessionName = `${baseSession.name} - ${dayName} ${dateFormatted}`;
 
-        // Check if session already exists for this date
-        const { data: existingSession } = await supabase
+        const { data: existingSessions } = await supabase
           .from('sessions')
           .select('id')
-          .eq('name', sessionName)
           .eq('session_date', currentDate.toISOString().split('T')[0])
-          .single();
+          .eq('parent_session_id', baseSession.id)
+          .limit(1);
+
+        const existingSession = existingSessions && existingSessions.length > 0 ? existingSessions[0] : null;
 
         if (!existingSession) {
           sessionsToCreate.push({
             name: sessionName,
             type: baseSession.type,
-            status: 'active', // Start as active, will be activated on the session date
-            repeat_type: 'one_time', // Individual recurring sessions are one-time
+            status: 'active',
+            repeat_type: 'one_time',
             start_time: baseSession.start_time,
             end_time: baseSession.end_time,
             session_date: currentDate.toISOString().split('T')[0],
-            parent_session_id: baseSession.id, // Link to base session for sync
+            parent_session_id: baseSession.id,
             created_by: baseSession.created_by
           });
+          console.log(`[CREATE RECURRING] Will create session for ${currentDate.toISOString().split('T')[0]} with parent_id: ${baseSession.id}`);
         }
       }
     }
 
-    // Create the recurring sessions
+    console.log(`[CREATE RECURRING] Total sessions to create: ${sessionsToCreate.length}`);
+
     if (sessionsToCreate.length > 0) {
       const { data: createdSessions, error: insertError } = await supabase
         .from('sessions')
         .insert(sessionsToCreate)
-        .select('id, session_date');
+        .select('id, session_date, name, parent_session_id');
 
       if (insertError) throw insertError;
 
-      console.log(`Created ${createdSessions.length} recurring sessions`);
+      console.log(`[CREATE RECURRING] ✅ Created ${createdSessions.length} recurring sessions:`);
+      createdSessions.forEach(s => {
+        console.log(`  - ${s.name} (date: ${s.session_date}, parent_id: ${s.parent_session_id})`);
+      });
 
-      // Now copy items and users to each new session
       for (const newSession of createdSessions) {
-        // Copy session items
         if (sessionItems.length > 0) {
           const itemsToInsert = sessionItems.map(item => ({
             session_id: newSession.id,
             item_id: item.item_id
           }));
 
-          const { error: itemsError } = await supabase
-            .from('session_items')
-            .insert(itemsToInsert);
-
-          if (itemsError) {
-            console.error('Error copying session items:', itemsError);
-          }
+          await supabase.from('session_items').insert(itemsToInsert);
         }
 
-        // Copy session users
         if (sessionUsers.length > 0) {
           const usersToInsert = sessionUsers.map(user => ({
             session_id: newSession.id,
             user_id: user.user_id
           }));
 
-          const { error: usersError } = await supabase
-            .from('session_users')
-            .insert(usersToInsert);
-
-          if (usersError) {
-            console.error('Error copying session users:', usersError);
-          }
+          await supabase.from('session_users').insert(usersToInsert);
         }
       }
 
-      console.log(`Copied ${sessionItems.length} items and ${sessionUsers.length} users to all recurring sessions`);
+      console.log(`[CREATE RECURRING] Copied ${sessionItems.length} items and ${sessionUsers.length} users`);
     }
   } catch (error) {
-    console.error('Error creating recurring sessions:', error);
+    console.error('[CREATE RECURRING] ❌ Error:', error);
   }
 };
 
-/**
- * Check if a session is currently active based on time window and date
- */
 export const isSessionActive = (session) => {
   const now = new Date();
   const currentTime = now.getHours() * 100 + now.getMinutes();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Check time window
   if (session.start_time && session.end_time) {
     const startTime = parseInt(session.start_time.replace(':', ''));
     const endTime = parseInt(session.end_time.replace(':', ''));
@@ -172,26 +179,22 @@ export const isSessionActive = (session) => {
     }
   }
 
-  // Check session date
   if (session.session_date) {
     const sessionDate = new Date(session.session_date);
     sessionDate.setHours(0, 0, 0, 0);
 
     if (sessionDate < today) {
-      return false; // Past session
+      return false;
     }
   }
 
   return true;
 };
 
-/**
- * Sync recurring sessions with base session changes
- * Updates all future sessions with the same parent_session_id
- */
 export const syncRecurringSessions = async (currentSessionId, supabase) => {
   try {
-    // Get current session details
+    console.log(`[SYNC] Starting sync for session ${currentSessionId}`);
+
     const { data: currentSession, error: sessionError } = await supabase
       .from('sessions')
       .select('*')
@@ -200,12 +203,18 @@ export const syncRecurringSessions = async (currentSessionId, supabase) => {
 
     if (sessionError) throw sessionError;
 
-    // Only sync if this is a recurring session (has parent_session_id)
+    console.log(`[SYNC] Current session:`, currentSession.name, currentSession.session_date);
+
     if (!currentSession.parent_session_id) {
-      return; // Not a recurring session
+      console.log('[SYNC] Not a recurring session (no parent_session_id), no sync needed');
+      return;
     }
 
-    // Get current items and users for this session
+    console.log(`[SYNC] This is a recurring session, parent_id: ${currentSession.parent_session_id}`);
+
+    const currentDateStr = currentSession.session_date;
+    console.log(`[SYNC] Current session date: ${currentDateStr}`);
+
     const [currentItemsRes, currentUsersRes] = await Promise.all([
       supabase
         .from('session_items')
@@ -223,66 +232,146 @@ export const syncRecurringSessions = async (currentSessionId, supabase) => {
     const currentItems = currentItemsRes.data || [];
     const currentUsers = currentUsersRes.data || [];
 
-    // Find all future sessions with the same parent
-    const today = new Date().toISOString().split('T')[0];
+    console.log(`[SYNC] Current session has ${currentItems.length} items and ${currentUsers.length} users`);
+
     const { data: futureSessions, error: futureError } = await supabase
       .from('sessions')
-      .select('id')
+      .select('id, session_date, name')
       .eq('parent_session_id', currentSession.parent_session_id)
-      .gte('session_date', today)
-      .neq('id', currentSessionId); // Exclude current session
+      .gt('session_date', currentDateStr)
+      .neq('id', currentSessionId)
+      .order('session_date');
 
     if (futureError) throw futureError;
 
-    console.log(`Found ${futureSessions.length} future sessions to sync`);
+    if (futureSessions.length === 0) {
+      console.log('[SYNC] No future sessions to sync');
+      return;
+    }
 
-    // Update each future session
+    console.log(`[SYNC] Found ${futureSessions.length} future sessions to sync:`);
+    futureSessions.forEach(s => console.log(`  - ${s.name} (${s.session_date})`));
+
     for (const futureSession of futureSessions) {
-      // Update items - first delete existing, then insert new
-      if (currentItems.length > 0) {
-        await supabase
-          .from('session_items')
-          .delete()
-          .eq('session_id', futureSession.id);
+      console.log(`[SYNC] Syncing session: ${futureSession.name}`);
 
+      await supabase.from('session_items').delete().eq('session_id', futureSession.id);
+
+      if (currentItems.length > 0) {
         const itemsToInsert = currentItems.map(item => ({
           session_id: futureSession.id,
           item_id: item.item_id
         }));
-
-        const { error: itemsError } = await supabase
-          .from('session_items')
-          .insert(itemsToInsert);
-
-        if (itemsError) {
-          console.error('Error syncing session items:', itemsError);
-        }
+        await supabase.from('session_items').insert(itemsToInsert);
+        console.log(`[SYNC] Added ${currentItems.length} items`);
       }
 
-      // Update users - first delete existing, then insert new
-      if (currentUsers.length > 0) {
-        await supabase
-          .from('session_users')
-          .delete()
-          .eq('session_id', futureSession.id);
+      await supabase.from('session_users').delete().eq('session_id', futureSession.id);
 
+      if (currentUsers.length > 0) {
         const usersToInsert = currentUsers.map(user => ({
           session_id: futureSession.id,
           user_id: user.user_id
         }));
-
-        const { error: usersError } = await supabase
-          .from('session_users')
-          .insert(usersToInsert);
-
-        if (usersError) {
-          console.error('Error syncing session users:', usersError);
-        }
+        await supabase.from('session_users').insert(usersToInsert);
+        console.log(`[SYNC] Added ${currentUsers.length} users`);
       }
     }
 
-    console.log(`Synced ${futureSessions.length} future sessions with current session changes`);
+    console.log(`[SYNC] ✅ Successfully synced ${futureSessions.length} future sessions`);
   } catch (error) {
-    console.error('Error syncing recurring sessions:', error);
+    console.error('[SYNC] ❌ Error:', error);
+  }
+};
+
+/**
+ * Sync parent session changes to all child sessions
+ * This function updates all child sessions when the parent session's items or users are modified
+ */
+export const syncParentToChildren = async (parentSessionId, supabase) => {
+  try {
+    console.log(`[SYNC PARENT] Starting sync for parent session ${parentSessionId}`);
+
+    // Get parent session details
+    const { data: parentSession, error: parentError } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', parentSessionId)
+      .single();
+
+    if (parentError) throw parentError;
+
+    console.log(`[SYNC PARENT] Parent session:`, parentSession.name, parentSession.session_date);
+
+    // Get parent session's items and users
+    const [parentItemsRes, parentUsersRes] = await Promise.all([
+      supabase
+        .from('session_items')
+        .select('item_id')
+        .eq('session_id', parentSessionId),
+      supabase
+        .from('session_users')
+        .select('user_id')
+        .eq('session_id', parentSessionId)
+    ]);
+
+    if (parentItemsRes.error) throw parentItemsRes.error;
+    if (parentUsersRes.error) throw parentUsersRes.error;
+
+    const parentItems = parentItemsRes.data || [];
+    const parentUsers = parentUsersRes.data || [];
+
+    console.log(`[SYNC PARENT] Parent session has ${parentItems.length} items and ${parentUsers.length} users`);
+
+    // Get all child sessions (sessions with this parent_session_id)
+    const { data: childSessions, error: childrenError } = await supabase
+      .from('sessions')
+      .select('id, session_date, name')
+      .eq('parent_session_id', parentSessionId)
+      .order('session_date');
+
+    if (childrenError) throw childrenError;
+
+    if (childSessions.length === 0) {
+      console.log('[SYNC PARENT] No child sessions to sync');
+      return;
+    }
+
+    console.log(`[SYNC PARENT] Found ${childSessions.length} child sessions to sync:`);
+    childSessions.forEach(s => console.log(`  - ${s.name} (${s.session_date})`));
+
+    // Update each child session with parent's items and users
+    for (const childSession of childSessions) {
+      console.log(`[SYNC PARENT] Syncing child session: ${childSession.name}`);
+
+      // Update items
+      await supabase.from('session_items').delete().eq('session_id', childSession.id);
+
+      if (parentItems.length > 0) {
+        const itemsToInsert = parentItems.map(item => ({
+          session_id: childSession.id,
+          item_id: item.item_id
+        }));
+        await supabase.from('session_items').insert(itemsToInsert);
+        console.log(`[SYNC PARENT] Added ${parentItems.length} items to child session`);
+      }
+
+      // Update users
+      await supabase.from('session_users').delete().eq('session_id', childSession.id);
+
+      if (parentUsers.length > 0) {
+        const usersToInsert = parentUsers.map(user => ({
+          session_id: childSession.id,
+          user_id: user.user_id
+        }));
+        await supabase.from('session_users').insert(usersToInsert);
+        console.log(`[SYNC PARENT] Added ${parentUsers.length} users to child session`);
+      }
+    }
+
+    console.log(`[SYNC PARENT] ✅ Successfully synced ${childSessions.length} child sessions`);
+  } catch (error) {
+    console.error('[SYNC PARENT] ❌ Error:', error);
+    throw error; // Re-throw to allow caller to handle
   }
 };
