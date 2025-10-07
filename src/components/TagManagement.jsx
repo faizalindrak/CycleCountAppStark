@@ -510,29 +510,67 @@ const TagManagement = ({ items, onTagsUpdated, session }) => {
                     </div>
                   </div>
 
-                  {/* Tag Search */}
+                  {/* Unified Tag Search and Create */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Search Existing Tags:
+                      {operation === 'add' ? 'Search or Create Tags:' : 'Search Tags to Remove:'}
                     </label>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                       <input
                         type="text"
-                        placeholder="Search existing tags..."
-                        value={tagSearchTerm}
-                        onChange={(e) => setTagSearchTerm(e.target.value)}
+                        placeholder={
+                          operation === 'add'
+                            ? "Search existing tags or type to create new..."
+                            : "Search tags to remove..."
+                        }
+                        value={tagSearchTerm || newTagName}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setTagSearchTerm(value);
+                          setNewTagName(value);
+                        }}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const searchValue = tagSearchTerm || newTagName;
+                            if (searchValue.trim()) {
+                              if (operation === 'add') {
+                                // If we have exact match in suggested tags, add it
+                                if (suggestedTags.includes(searchValue.trim())) {
+                                  handleAddTag(searchValue.trim());
+                                  setTagSearchTerm('');
+                                  setNewTagName('');
+                                } else {
+                                  // Otherwise create new tag
+                                  handleCreateNewTag();
+                                }
+                              } else {
+                                // For remove operation, only add if it exists in suggested tags
+                                if (suggestedTags.includes(searchValue.trim())) {
+                                  handleAddTag(searchValue.trim());
+                                  setTagSearchTerm('');
+                                  setNewTagName('');
+                                }
+                              }
+                            }
+                          }
+                        }}
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
-                    {/* Suggested Tags */}
-                    {suggestedTags.length > 0 && (
-                      <div className="mt-2 max-h-32 overflow-y-auto border border-gray-200 rounded-md">
-                        {suggestedTags.map(tag => (
+                    {/* Suggested Tags or Create Option */}
+                    <div className="mt-2 max-h-32 overflow-y-auto border border-gray-200 rounded-md">
+                      {suggestedTags.length > 0 ? (
+                        // Show existing tags that match search
+                        suggestedTags.map(tag => (
                           <button
                             key={tag}
-                            onClick={() => handleAddTag(tag)}
+                            onClick={() => {
+                              handleAddTag(tag);
+                              setTagSearchTerm('');
+                              setNewTagName('');
+                            }}
                             disabled={selectedTags.has(tag)}
                             className={`w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 ${
                               selectedTags.has(tag) ? 'bg-gray-100 text-gray-400' : 'text-gray-700'
@@ -542,36 +580,47 @@ const TagManagement = ({ items, onTagsUpdated, session }) => {
                             {tag}
                             {selectedTags.has(tag) && <Check className="h-3 w-3 text-green-600" />}
                           </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Create New Tag */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Create New Tag:
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Enter new tag name..."
-                        value={newTagName}
-                        onChange={(e) => setNewTagName(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleCreateNewTag()}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        onClick={handleCreateNewTag}
-                        disabled={!newTagName.trim() || allTags.includes(newTagName.trim())}
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-300 flex items-center gap-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Create
-                      </button>
+                        ))
+                      ) : (
+                        operation === 'add' && tagSearchTerm.trim() && (
+                          // Show create new option when no matches found (only for add operation)
+                          <button
+                            onClick={() => {
+                              handleCreateNewTag();
+                              setTagSearchTerm('');
+                            }}
+                            disabled={!newTagName.trim() || allTags.includes(newTagName.trim())}
+                            className="w-full text-left px-3 py-2 hover:bg-green-50 flex items-center gap-2 text-green-700 border-t border-gray-100"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Create "{newTagName.trim()}"
+                            {!newTagName.trim() || allTags.includes(newTagName.trim()) ? (
+                              <span className="text-xs text-gray-400 ml-auto">
+                                {newTagName.trim() ? 'Already exists' : 'Enter tag name'}
+                              </span>
+                            ) : null}
+                          </button>
+                        )
+                      )}
                     </div>
-                    {newTagName.trim() && allTags.includes(newTagName.trim()) && (
-                      <p className="text-sm text-red-600 mt-1">Tag already exists</p>
+
+                    {/* Show current search term when typing */}
+                    {tagSearchTerm.trim() && (
+                      <div className="mt-2 text-sm text-gray-600">
+                        {suggestedTags.length > 0 ? (
+                          operation === 'add' ? (
+                            <span>Found {suggestedTags.length} existing tag(s). Click to select or press Enter to create new.</span>
+                          ) : (
+                            <span>Found {suggestedTags.length} tag(s) to remove. Click to select.</span>
+                          )
+                        ) : (
+                          operation === 'add' ? (
+                            <span>No existing tags found. Press Enter or click to create "{tagSearchTerm.trim()}"</span>
+                          ) : (
+                            <span>No matching tags found to remove.</span>
+                          )
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
