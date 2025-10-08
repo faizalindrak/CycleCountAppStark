@@ -61,8 +61,8 @@ const StatusList = ({ title, items, onFollowUpStatus, getStatusIcon, getFollowUp
                         {item.user_report_name && (
                           <span><strong>By:</strong> {item.user_report_name}</span>
                         )}
-                        {item.follow_up_status === 'closed' && item.user_follow_up && (
-                          <span><strong>Closed by:</strong> {item.user_follow_up}</span>
+                        {item.user_follow_up_name && (
+                          <span><strong>Updated by:</strong> {item.user_follow_up_name}</span>
                         )}
                       </div>
 

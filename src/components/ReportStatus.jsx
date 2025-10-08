@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
 import BulkFollowUpModal from './BulkFollowUpModal';
 import { supabase } from '../lib/supabase';
+import writeXlsxFile from 'write-excel-file';
 
 const ReportStatus = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [statusType, setStatusType] = useState('kritis'); // 'kritis' or 'over'
@@ -34,8 +37,10 @@ const ReportStatus = () => {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Map user_report UUIDs to profile full names
-      const userIds = [...new Set((data || []).map(r => r.user_report).filter(Boolean))];
+      // Map user_report and user_follow_up UUIDs to profile full names
+      const userIds = [...new Set(
+        (data || []).flatMap(r => [r.user_report, r.user_follow_up]).filter(Boolean)
+      )];
       let profileMap = {};
       if (userIds.length > 0) {
         const { data: profilesData, error: profilesError } = await supabase
@@ -49,7 +54,8 @@ const ReportStatus = () => {
 
       const enriched = (data || []).map(r => ({
         ...r,
-        user_report_name: profileMap[r.user_report] || null
+        user_report_name: profileMap[r.user_report] || null,
+        user_follow_up_name: profileMap[r.user_follow_up] || null
       }));
 
       setReports(enriched);
@@ -128,6 +134,44 @@ const ReportStatus = () => {
     setSelectedItems([]);
   };
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      // ignore
+    } finally {
+      navigate('/');
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    try {
+      const schema = [
+        { column: 'Date', type: String, value: r => r.date_input, width: 14 },
+        { column: 'SKU', type: String, value: r => r.sku, width: 20 },
+        { column: 'Internal Product Code', type: String, value: r => r.internal_product_code, width: 22 },
+        { column: 'Item Name', type: String, value: r => r.item_name, width: 30 },
+        { column: 'Inventory Status', type: String, value: r => r.inventory_status, width: 18 },
+        { column: 'Remarks', type: String, value: r => (r.remarks || ''), width: 40 },
+        { column: 'Qty', type: Number, value: r => (typeof r.qty === 'number' ? r.qty : undefined), width: 10 },
+        { column: 'Follow Up Status', type: String, value: r => r.follow_up_status, width: 18 },
+        { column: 'Created By (Name)', type: String, value: r => (r.user_report_name || ''), width: 24 },
+        { column: 'Updated By (Name)', type: String, value: r => (r.user_follow_up_name || ''), width: 24 },
+        { column: 'Created At', type: String, value: r => new Date(r.created_at).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
+        { column: 'Updated At', type: String, value: r => new Date(r.updated_at).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
+      ];
+
+      await writeXlsxFile(reports || [], {
+        schema,
+        fileName: `report_status_${filterDate}.xlsx`,
+        sheet: `Reports_${filterDate}`,
+      });
+    } catch (err) {
+      console.error('Error generating Excel:', err);
+      alert('Failed to download Excel report.');
+    }
+  };
+
   // Filter reports based on active tab
   const filteredReports = reports.filter(report => {
     if (activeTab === 'all') return true;
@@ -180,6 +224,26 @@ const ReportStatus = () => {
                 <p className="text-gray-600">Monitor and manage raw material inventory status</p>
               </div>
             </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-600 hidden sm:block">
+                Welcome, {user?.user_metadata?.name || user?.email}
+              </span>
+              <button
+                onClick={() => navigate('/home')}
+                className="text-blue-600 hover:text-blue-800"
+                title="Go to Home"
+              >
+                <Home className="h-5 w-5" />
+              </button>
+              <button
+                onClick={handleLogout}
+                className="text-red-600 hover:text-red-800 flex items-center space-x-1"
+                title="Logout"
+              >
+                <LogOut className="h-5 w-5" />
+                <span className="hidden sm:block">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -211,6 +275,14 @@ const ReportStatus = () => {
                 onChange={(e) => setFilterDate(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <button
+                onClick={handleDownloadReport}
+                className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 flex items-center gap-2"
+                title="Download Excel"
+              >
+                <Download className="h-4 w-4" />
+                <span>Download</span>
+              </button>
             </div>
           </div>
 
