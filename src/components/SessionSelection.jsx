@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Users, Calendar, Package2, Clock, LogOut } from 'lucide-react';
+import { ClipboardList, Users, Calendar, Package2, Clock, LogOut, Home } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const SessionSelection = () => {
@@ -67,6 +67,10 @@ const SessionSelection = () => {
     }
   };
 
+  const handleGoHome = () => {
+    navigate('/home');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100">
@@ -78,6 +82,13 @@ const SessionSelection = () => {
                 <span className="text-gray-600 hidden sm:block">
                   Welcome, {user?.user_metadata?.name || user?.email}
                 </span>
+                <button
+                  onClick={handleGoHome}
+                  className="text-blue-600 hover:text-blue-800"
+                  title="Go to Home"
+                >
+                  <Home className="h-5 w-5" />
+                </button>
                 <button
                   onClick={handleSignOut}
                   className="text-red-600 hover:text-red-800"
@@ -106,6 +117,13 @@ const SessionSelection = () => {
               <span className="text-gray-600 hidden sm:block">
                 Welcome, {user?.user_metadata?.name || user?.email}
               </span>
+              <button
+                onClick={handleGoHome}
+                className="text-blue-600 hover:text-blue-800"
+                title="Go to Home"
+              >
+                <Home className="h-5 w-5" />
+              </button>
               <button
                 onClick={handleSignOut}
                 className="text-red-600 hover:text-red-800"

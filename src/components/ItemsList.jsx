@@ -6,6 +6,7 @@ import {
   QrCode,
   ChevronLeft,
   LogOut,
+  Home,
   CheckCircle,
   XCircle,
   MapPin,
@@ -816,6 +817,13 @@ const ItemsList = () => {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              <button
+                onClick={() => navigate('/home')}
+                className="text-blue-600 hover:text-blue-800 p-2"
+                title="Go to Home"
+              >
+                <Home className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>

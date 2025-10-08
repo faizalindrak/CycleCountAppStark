@@ -23,7 +23,8 @@ import {
   Tag,
   Hash,
   Code,
-  Folder
+  Folder,
+  Home
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
 import TagManagement from './TagManagement';
@@ -257,6 +258,13 @@ const AdminDashboard = ({ user, signOut }) => {
               <span className="text-gray-600 hidden sm:block">
                 Welcome, {user?.user_metadata?.name || user?.email}
               </span>
+              <button
+                onClick={() => navigate('/home')}
+                className="text-blue-600 hover:text-blue-800"
+                title="Go to Home"
+              >
+                <Home className="h-5 w-5" />
+              </button>
               <button
                 onClick={handleSignOut}
                 className="text-red-600 hover:text-red-800 flex items-center space-x-1"
