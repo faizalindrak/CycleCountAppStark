@@ -999,7 +999,7 @@ const UsersManager = React.memo(({ users, setUsers, onDataChange }) => {
                       ? 'bg-red-100 text-red-800'
                       : 'bg-green-100 text-green-800'
                   }`}>
-                    {user.role}
+                    {user.role === 'counter' ? 'Counter' : user.role}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -2310,7 +2310,7 @@ const UserEditor = React.memo(({ user, onClose, onSave }) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >
-              <option value="user">User</option>
+              <option value="counter">Counter</option>
               <option value="admin">Admin</option>
             </select>
           </div>
