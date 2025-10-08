@@ -192,3 +192,128 @@ export const reactivateLocation = async (locationId) => {
     throw error;
   }
 };
+
+// =====================================================
+// REPORT STATUS RAW MATERIAL HELPERS
+// =====================================================
+
+// Helper function to get all report status records with optional filtering
+export const getReportStatusRecords = async (filters = {}) => {
+  try {
+    let query = supabase
+      .from('report_status_raw_mat')
+      .select('*');
+
+    // Apply filters
+    if (filters.date_input) {
+      query = query.eq('date_input', filters.date_input);
+    }
+
+    if (filters.inventory_status) {
+      query = query.eq('inventory_status', filters.inventory_status);
+    }
+
+    if (filters.follow_up_status) {
+      query = query.eq('follow_up_status', filters.follow_up_status);
+    }
+
+    if (filters.user_report) {
+      query = query.eq('user_report', filters.user_report);
+    }
+
+    // Order by creation date (newest first)
+    query = query.order('created_at', { ascending: false });
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching report status records:', error);
+    throw error;
+  }
+};
+
+// Helper function to create a new report status record
+export const createReportStatusRecord = async (recordData) => {
+  try {
+    const { data, error } = await supabase
+      .from('report_status_raw_mat')
+      .insert([recordData])
+      .select();
+
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error creating report status record:', error);
+    throw error;
+  }
+};
+
+// Helper function to update a report status record
+export const updateReportStatusRecord = async (recordId, updateData) => {
+  try {
+    const { data, error } = await supabase
+      .from('report_status_raw_mat')
+      .update(updateData)
+      .eq('id', recordId)
+      .select();
+
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (error) {
+    console.error('Error updating report status record:', error);
+    throw error;
+  }
+};
+
+// Helper function to delete a report status record
+export const deleteReportStatusRecord = async (recordId) => {
+  try {
+    const { data, error } = await supabase
+      .from('report_status_raw_mat')
+      .delete()
+      .eq('id', recordId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting report status record:', error);
+    throw error;
+  }
+};
+
+// Helper function to get report status statistics
+export const getReportStatusStats = async (date_input) => {
+  try {
+    let query = supabase
+      .from('report_status_raw_mat')
+      .select('inventory_status, follow_up_status');
+
+    if (date_input) {
+      query = query.eq('date_input', date_input);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const stats = {
+      total: data.length,
+      by_inventory_status: {
+        kritis: data.filter(item => item.inventory_status === 'kritis').length,
+        over: data.filter(item => item.inventory_status === 'over').length
+      },
+      by_follow_up_status: {
+        open: data.filter(item => item.follow_up_status === 'open').length,
+        on_progress: data.filter(item => item.follow_up_status === 'on_progress').length,
+        closed: data.filter(item => item.follow_up_status === 'closed').length
+      }
+    };
+
+    return stats;
+  } catch (error) {
+    console.error('Error fetching report status stats:', error);
+    throw error;
+  }
+};

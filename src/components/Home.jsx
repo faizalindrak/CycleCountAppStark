@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Package, Users, Settings, LogOut, Calculator } from 'lucide-react';
+import { Package, Users, Settings, LogOut, Calculator, AlertTriangle } from 'lucide-react';
 
 const Home = () => {
   const { user, profile, signOut } = useAuth();
@@ -21,6 +21,10 @@ const Home = () => {
 
   const handleAdminPage = () => {
     navigate('/admin/sessions');
+  };
+
+  const handleReportStatus = () => {
+    navigate('/reportstatus');
   };
 
   return (
@@ -71,6 +75,26 @@ const Home = () => {
                   <div className="ml-4 flex-1">
                     <h3 className="text-lg font-medium text-gray-900">Cycle Count</h3>
                     <p className="text-sm text-gray-500">Start counting items in sessions</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Report Status Raw Material Card */}
+            <div
+              onClick={handleReportStatus}
+              className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+            >
+              <div className="p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-red-500 rounded-md flex items-center justify-center">
+                      <AlertTriangle className="h-5 w-5 text-white" />
+                    </div>
+                  </div>
+                  <div className="ml-4 flex-1">
+                    <h3 className="text-lg font-medium text-gray-900">Report Status Raw Mat</h3>
+                    <p className="text-sm text-gray-500">Report and monitor raw material inventory status</p>
                   </div>
                 </div>
               </div>

@@ -7,6 +7,7 @@ import Home from './components/Home';
 import AdminDashboard from './components/AdminDashboard';
 import SessionSelection from './components/SessionSelection';
 import ItemsList from './components/ItemsList';
+import ReportStatus from './components/ReportStatus';
 
 // Protected Route component for authenticated users
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -96,6 +97,16 @@ const App = () => {
             element={
               <ProtectedRoute>
                 <ItemsList />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Report Status Raw Material page */}
+          <Route
+            path="/reportstatus"
+            element={
+              <ProtectedRoute>
+                <ReportStatus />
               </ProtectedRoute>
             }
           />
