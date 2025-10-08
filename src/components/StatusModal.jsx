@@ -98,7 +98,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType }) => {
       remarks: '',
       qty: ''
     });
-    setSearchTerm(item.item_name);
+    setSearchTerm(''); // Clear search term to hide dropdown
     setFilteredItems([]);
   };
 
