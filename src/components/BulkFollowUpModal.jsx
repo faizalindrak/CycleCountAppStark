@@ -46,9 +46,6 @@ const BulkFollowUpModal = ({ isOpen, onClose, onSubmit, selectedItems = [], repo
     onClose();
   };
 
-  // Get selected item details for display
-  const selectedItemDetails = reports.filter(report => selectedItems.includes(report.id));
-
   if (!isOpen) return null;
 
   return (
@@ -68,26 +65,6 @@ const BulkFollowUpModal = ({ isOpen, onClose, onSubmit, selectedItems = [], repo
           </button>
         </div>
 
-        {/* Selected Items Preview */}
-        <div className="p-6 border-b bg-gray-50">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Selected Items:</h4>
-          <div className="max-h-32 overflow-y-auto space-y-2">
-            {selectedItemDetails.map((item) => (
-              <div key={item.id} className="flex items-center gap-2 text-sm">
-                <span className="font-medium">{item.item_name}</span>
-                <span className="text-gray-500">({item.sku})</span>
-                <span className={`px-2 py-1 rounded-full text-xs ${
-                  item.follow_up_status === 'open' ? 'bg-blue-100 text-blue-800' :
-                  item.follow_up_status === 'on_progress' ? 'bg-yellow-100 text-yellow-800' :
-                  item.follow_up_status === 'closed' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {item.follow_up_status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">

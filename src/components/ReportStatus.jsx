@@ -32,10 +32,27 @@ const ReportStatus = () => {
         .order('created_at', { ascending: false });
 
       const { data, error } = await query;
-
       if (error) throw error;
 
-      setReports(data || []);
+      // Map user_report UUIDs to profile full names
+      const userIds = [...new Set((data || []).map(r => r.user_report).filter(Boolean))];
+      let profileMap = {};
+      if (userIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, name')
+          .in('id', userIds);
+        if (!profilesError && profilesData) {
+          profilesData.forEach(p => { profileMap[p.id] = p.name; });
+        }
+      }
+
+      const enriched = (data || []).map(r => ({
+        ...r,
+        user_report_name: profileMap[r.user_report] || null
+      }));
+
+      setReports(enriched);
     } catch (error) {
       console.error('Error fetching reports:', error);
     } finally {
@@ -153,7 +170,7 @@ const ReportStatus = () => {
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex justify-between items-center py-3">
             <div className="flex items-center gap-3">
               <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
                 <AlertTriangle className="h-5 w-5 text-blue-600" />
@@ -168,10 +185,10 @@ const ReportStatus = () => {
       </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          {/* Action Buttons */}
-          <div className="mb-6 flex flex-wrap gap-3">
+      <main className="max-w-7xl mx-auto pt-3 pb-8 sm:px-6 lg:px-8">
+        <div className="px-4 py-3 sm:px-0">
+          {/* Action Buttons + Date Filter */}
+          <div className="mb-6 flex flex-wrap items-center gap-3">
             <button
               onClick={() => handleAddStatus('kritis')}
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center gap-2"
@@ -186,6 +203,15 @@ const ReportStatus = () => {
               <Plus className="h-4 w-4" />
               Add Status Over
             </button>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           {/* Bulk Selection Actions */}
@@ -214,19 +240,7 @@ const ReportStatus = () => {
             </div>
           )}
 
-          {/* Filter Pills */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Filter by Date:</span>
-            </div>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          {/* Date filter moved next to action buttons */}
 
           {/* Status Tabs */}
           <div className="mb-6">
