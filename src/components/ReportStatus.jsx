@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
-import FollowUpModal from './FollowUpModal';
+import BulkFollowUpModal from './BulkFollowUpModal';
 import { supabase } from '../lib/supabase';
 
 const ReportStatus = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('all');
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
   const [statusType, setStatusType] = useState('kritis'); // 'kritis' or 'over'
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
 
   // Fetch reports on component mount and when filter changes
   useEffect(() => {
@@ -48,11 +48,6 @@ const ReportStatus = () => {
     setIsStatusModalOpen(true);
   };
 
-  const handleFollowUpStatus = (item) => {
-    setSelectedItem(item);
-    setIsFollowUpModalOpen(true);
-  };
-
   const handleStatusSubmit = async (formData) => {
     console.log('handleStatusSubmit called with:', formData);
     try {
@@ -80,7 +75,16 @@ const ReportStatus = () => {
     }
   };
 
-  const handleFollowUpUpdate = async (newStatus) => {
+
+  const handleSelectionChange = (itemId, isSelected) => {
+    if (isSelected) {
+      setSelectedItems(prev => [...prev, itemId]);
+    } else {
+      setSelectedItems(prev => prev.filter(id => id !== itemId));
+    }
+  };
+
+  const handleBulkStatusUpdate = async (newStatus) => {
     try {
       const { data, error } = await supabase
         .from('report_status_raw_mat')
@@ -88,19 +92,23 @@ const ReportStatus = () => {
           follow_up_status: newStatus,
           user_follow_up: user.id
         })
-        .eq('id', selectedItem.id)
+        .in('id', selectedItems)
         .select();
 
       if (error) throw error;
 
-      // Refresh reports
+      // Refresh reports and clear selection
       fetchReports();
-      setIsFollowUpModalOpen(false);
-      setSelectedItem(null);
+      setSelectedItems([]);
+      setIsBulkStatusModalOpen(false);
     } catch (error) {
-      console.error('Error updating follow up status:', error);
-      throw error; // Re-throw error so modal can handle it
+      console.error('Error updating bulk follow up status:', error);
+      throw error;
     }
+  };
+
+  const clearSelection = () => {
+    setSelectedItems([]);
   };
 
   // Filter reports based on active tab
@@ -180,6 +188,32 @@ const ReportStatus = () => {
             </button>
           </div>
 
+          {/* Bulk Selection Actions */}
+          {selectedItems.length > 0 && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-blue-900">
+                    {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} selected
+                  </span>
+                  <button
+                    onClick={clearSelection}
+                    className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+                <button
+                  onClick={() => setIsBulkStatusModalOpen(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  Change Status
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Filter Pills */}
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
@@ -234,10 +268,11 @@ const ReportStatus = () => {
                 <StatusList
                   title="Open Status"
                   items={groupedReports.open}
-                  onFollowUpStatus={handleFollowUpStatus}
                   getStatusIcon={getStatusIcon}
                   getFollowUpIcon={getFollowUpIcon}
                   emptyMessage="No open status reports"
+                  selectedItems={selectedItems}
+                  onSelectionChange={handleSelectionChange}
                 />
               ) : null}
 
@@ -245,10 +280,11 @@ const ReportStatus = () => {
                 <StatusList
                   title="On Progress Status"
                   items={groupedReports.on_progress}
-                  onFollowUpStatus={handleFollowUpStatus}
                   getStatusIcon={getStatusIcon}
                   getFollowUpIcon={getFollowUpIcon}
                   emptyMessage="No on progress status reports"
+                  selectedItems={selectedItems}
+                  onSelectionChange={handleSelectionChange}
                 />
               ) : null}
 
@@ -256,10 +292,11 @@ const ReportStatus = () => {
                 <StatusList
                   title="Closed Status"
                   items={groupedReports.closed}
-                  onFollowUpStatus={handleFollowUpStatus}
                   getStatusIcon={getStatusIcon}
                   getFollowUpIcon={getFollowUpIcon}
                   emptyMessage="No closed status reports"
+                  selectedItems={selectedItems}
+                  onSelectionChange={handleSelectionChange}
                 />
               ) : null}
             </div>
@@ -275,14 +312,14 @@ const ReportStatus = () => {
         statusType={statusType}
       />
 
-      <FollowUpModal
-        isOpen={isFollowUpModalOpen}
+      <BulkFollowUpModal
+        isOpen={isBulkStatusModalOpen}
         onClose={() => {
-          setIsFollowUpModalOpen(false);
-          setSelectedItem(null);
+          setIsBulkStatusModalOpen(false);
         }}
-        onSubmit={handleFollowUpUpdate}
-        currentStatus={selectedItem?.follow_up_status}
+        onSubmit={handleBulkStatusUpdate}
+        selectedItems={selectedItems}
+        reports={reports}
       />
     </div>
   );
