@@ -111,9 +111,9 @@ const ReportStatus = () => {
 
   // Group reports by follow up status for display
   const groupedReports = {
-    open: filteredReports.filter(r => r.follow_up_status === 'open'),
-    on_progress: filteredReports.filter(r => r.follow_up_status === 'on_progress'),
-    closed: filteredReports.filter(r => r.follow_up_status === 'closed')
+    open: reports.filter(r => r.follow_up_status === 'open'),
+    on_progress: reports.filter(r => r.follow_up_status === 'on_progress'),
+    closed: reports.filter(r => r.follow_up_status === 'closed')
   };
 
   const getStatusIcon = (status) => {
@@ -199,7 +199,7 @@ const ReportStatus = () => {
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
                 {[
-                  { key: 'all', label: 'All Status', count: filteredReports.length },
+                  { key: 'all', label: 'All Status', count: reports.length },
                   { key: 'open', label: 'Open', count: groupedReports.open.length },
                   { key: 'on_progress', label: 'On Progress', count: groupedReports.on_progress.length },
                   { key: 'closed', label: 'Closed', count: groupedReports.closed.length }
