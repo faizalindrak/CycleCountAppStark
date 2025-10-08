@@ -1,63 +1,111 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import LoginForm from './components/LoginForm';
 import LoadingSpinner from './components/LoadingSpinner';
+import Home from './components/Home';
 import AdminDashboard from './components/AdminDashboard';
 import SessionSelection from './components/SessionSelection';
 import ItemsList from './components/ItemsList';
 
-const App = () => {
-  const { user, profile, loading, isAuthenticated, isAdmin, signOut } = useAuth();
-  const [currentPage, setCurrentPage] = useState('login');
-  const [selectedSession, setSelectedSession] = useState(null);
+// Protected Route component for authenticated users
+const ProtectedRoute = ({ children, requireAdmin = false }) => {
+  const { user, profile, loading, isAuthenticated, isAdmin } = useAuth();
 
-  // Show loading spinner while checking authentication
   if (loading) {
     return <LoadingSpinner />;
   }
 
-  // If not authenticated, show login form
   if (!isAuthenticated || !user) {
-    return <LoginForm />;
+    return <Navigate to="/" replace />;
   }
 
-  // Handle page navigation based on user role and current page
-  const handleSessionSelect = (session) => {
-    setSelectedSession(session);
-    setCurrentPage('items-list');
-  };
-
-  const handleBackToSessions = () => {
-    setSelectedSession(null);
-    setCurrentPage('select-session');
-  };
-
-  // Admin dashboard
-  if (isAdmin && currentPage === 'login') {
-    return <AdminDashboard user={user} signOut={signOut} />;
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/sessions" replace />;
   }
 
-  // Counter session selection
-  if (!isAdmin && currentPage === 'select-session') {
-    return <SessionSelection onSessionSelect={handleSessionSelect} />;
+  return children;
+};
+
+// Public Route component (redirects to appropriate page if already authenticated)
+const PublicRoute = ({ children }) => {
+  const { user, loading, isAuthenticated, isAdmin } = useAuth();
+
+  if (loading) {
+    return <LoadingSpinner />;
   }
 
-  // Items counting page
-  if (currentPage === 'items-list' && selectedSession) {
-    return (
-      <ItemsList
-        session={selectedSession}
-        onBack={handleBackToSessions}
-      />
-    );
+  if (isAuthenticated && user) {
+    return <Navigate to="/home" replace />;
   }
 
-  // Default routing based on user role
-  if (isAdmin) {
-    return <AdminDashboard user={user} signOut={signOut} />;
-  } else {
-    return <SessionSelection onSessionSelect={handleSessionSelect} />;
-  }
+  return children;
+};
+
+const App = () => {
+  const { user, signOut } = useAuth();
+
+  return (
+    <Router>
+      <div className="App">
+        <Routes>
+          {/* Public route - Login page */}
+          <Route
+            path="/"
+            element={
+              <PublicRoute>
+                <LoginForm />
+              </PublicRoute>
+            }
+          />
+
+          {/* Protected routes for authenticated users */}
+          {/* Home page */}
+          <Route
+            path="/home"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Admin routes */}
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminDashboard user={user} signOut={signOut} />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Session selection for non-admin users */}
+          <Route
+            path="/sessions"
+            element={
+              <ProtectedRoute>
+                <SessionSelection />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Items counting page */}
+          <Route
+            path="/counting/:sessionId"
+            element={
+              <ProtectedRoute>
+                <ItemsList />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch all route - redirect to appropriate page based on auth status */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </Router>
+  );
 };
 
 export default App;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { Routes, Route, useNavigate, useLocation, Link, Navigate } from 'react-router-dom';
 import {
   Package,
   Users,
@@ -28,9 +29,19 @@ import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, r
 import TagManagement from './TagManagement';
 
 const AdminDashboard = ({ user, signOut }) => {
-  const [activeTab, setActiveTab] = useState('sessions');
+  const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Get current tab from URL path
+  const getCurrentTab = () => {
+    const pathSegments = location.pathname.split('/');
+    const lastSegment = pathSegments[pathSegments.length - 1];
+    return lastSegment || 'sessions';
+  };
+
+  const activeTab = getCurrentTab();
 
   // Shared state for all manager components
   const [sessions, setSessions] = useState([]);
@@ -182,11 +193,11 @@ const AdminDashboard = ({ user, signOut }) => {
   }, [cacheDuration, fetchAllData]);
 
   const tabs = [
-    { id: 'sessions', label: 'Sessions', icon: ClipboardList },
-    { id: 'items', label: 'Items', icon: Package },
-    { id: 'tags', label: 'Tags', icon: Tag },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'categories', label: 'Categories & Locations', icon: Building },
+    { id: 'sessions', label: 'Sessions', icon: ClipboardList, path: '/admin/sessions' },
+    { id: 'items', label: 'Items', icon: Package, path: '/admin/items' },
+    { id: 'tags', label: 'Tags', icon: Tag, path: '/admin/tags' },
+    { id: 'users', label: 'Users', icon: Users, path: '/admin/users' },
+    { id: 'categories', label: 'Categories & Locations', icon: Building, path: '/admin/categories' },
   ];
 
   const handleSignOut = async () => {
@@ -262,19 +273,20 @@ const AdminDashboard = ({ user, signOut }) => {
             <nav className="-mb-px flex space-x-4 overflow-x-auto">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
                 return (
-                  <button
+                  <Link
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    to={tab.path}
                     className={`flex items-center gap-2 whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm ${
-                      activeTab === tab.id
+                      isActive
                         ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
                     {tab.label}
-                  </button>
+                  </Link>
                 );
               })}
             </nav>
@@ -297,32 +309,28 @@ const AdminDashboard = ({ user, signOut }) => {
             <span className="ml-2 text-gray-600">Loading dashboard data...</span>
           </div>
         ) : (
-          <>
-            <div style={{ display: activeTab === 'sessions' ? 'block' : 'none' }}>
-              <SessionsManager sessions={sessions} setSessions={setSessions} onDataChange={fetchAllData} />
-            </div>
-            <div style={{ display: activeTab === 'items' ? 'block' : 'none' }}>
-              <ItemsManager items={items} setItems={setItems} categories={categories} setCategories={setCategories} onDataChange={fetchAllData} />
-            </div>
-            <div style={{ display: activeTab === 'tags' ? 'block' : 'none' }}>
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold">Tag Management</h3>
-                <p className="text-gray-600 text-sm mt-1">
-                  Manage tags for all items in the system. Select items to add or remove tags in bulk.
-                </p>
-              </div>
-              <TagManagement
-                items={items}
-                onTagsUpdated={refreshItemsData}
-              />
-            </div>
-            <div style={{ display: activeTab === 'users' ? 'block' : 'none' }}>
-              <UsersManager users={users} setUsers={setUsers} onDataChange={fetchAllData} />
-            </div>
-            <div style={{ display: activeTab === 'categories' ? 'block' : 'none' }}>
-              <CategoriesManager items={items} categories={categories} setCategories={setCategories} locations={locations} setLocations={setLocations} onDataChange={fetchAllData} />
-            </div>
-          </>
+          <Routes>
+            <Route path="sessions" element={<SessionsManager sessions={sessions} setSessions={setSessions} onDataChange={fetchAllData} />} />
+            <Route path="items" element={<ItemsManager items={items} setItems={setItems} categories={categories} setCategories={setCategories} onDataChange={fetchAllData} />} />
+            <Route path="tags" element={
+              <>
+                <div className="mb-6">
+                  <h3 className="text-xl font-semibold">Tag Management</h3>
+                  <p className="text-gray-600 text-sm mt-1">
+                    Manage tags for all items in the system. Select items to add or remove tags in bulk.
+                  </p>
+                </div>
+                <TagManagement
+                  items={items}
+                  onTagsUpdated={refreshItemsData}
+                />
+              </>
+            } />
+            <Route path="users" element={<UsersManager users={users} setUsers={setUsers} onDataChange={fetchAllData} />} />
+            <Route path="categories" element={<CategoriesManager items={items} categories={categories} setCategories={setCategories} locations={locations} setLocations={setLocations} onDataChange={fetchAllData} />} />
+            {/* Default redirect to sessions */}
+            <Route path="*" element={<Navigate to="sessions" replace />} />
+          </Routes>
         )}
       </main>
     </div>

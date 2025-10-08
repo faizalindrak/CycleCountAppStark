@@ -13,7 +13,8 @@
     "@zxing/library": "^0.21.3",
     "lucide-react": "^0.477.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.9.3"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

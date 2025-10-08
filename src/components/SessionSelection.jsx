@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { ClipboardList, Users, Calendar, Package2, Clock, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const SessionSelection = ({ onSessionSelect }) => {
+const SessionSelection = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -135,7 +137,7 @@ const SessionSelection = ({ onSessionSelect }) => {
             sessions.map((session) => (
               <div
                 key={session.id}
-                onClick={() => onSessionSelect(session)}
+                onClick={() => navigate(`/counting/${session.id}`)}
                 className="bg-white p-6 rounded-lg shadow hover:shadow-md cursor-pointer transition-shadow"
               >
                 <div className="flex justify-between items-start">

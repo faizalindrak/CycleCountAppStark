@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Search,
   QrCode,
@@ -23,8 +24,11 @@ import { isMobileDevice } from '../lib/deviceDetection';
 import CalculatorComponent from './Calculator';
 import ScanModal from './ScanModal';
 
-const ItemsList = ({ session, onBack }) => {
+const ItemsList = () => {
   const { user } = useAuth();
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
+  const [session, setSession] = useState(null);
   const [items, setItems] = useState([]);
   const [counts, setCounts] = useState({});
   const [locations, setLocations] = useState([]);
@@ -219,21 +223,23 @@ const ItemsList = ({ session, onBack }) => {
   }, [countQuantity]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!sessionId) return;
     fetchSessionData();
     const unsubscribe = subscribeToCounts();
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [session]);
+  }, [sessionId]);
 
   // Load last selected location from localStorage
   useEffect(() => {
-    const savedLocation = localStorage.getItem(`lastSelectedLocation_${session?.id}_${user?.id}`);
-    if (savedLocation) {
-      setLastSelectedLocation(savedLocation);
+    if (sessionId) {
+      const savedLocation = localStorage.getItem(`lastSelectedLocation_${sessionId}_${user?.id}`);
+      if (savedLocation) {
+        setLastSelectedLocation(savedLocation);
+      }
     }
-  }, [session, user]);
+  }, [sessionId, user]);
 
   // Update editing state when location changes
   useEffect(() => {
@@ -314,6 +320,16 @@ const ItemsList = ({ session, onBack }) => {
     try {
       setLoading(true);
 
+      // First fetch the session data
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionError) throw sessionError;
+      setSession(sessionData);
+
       // Fetch session items with item details
       const { data: sessionItems, error: sessionItemsError } = await supabase
         .from('session_items')
@@ -329,7 +345,7 @@ const ItemsList = ({ session, onBack }) => {
             internal_product_code
           )
         `)
-        .eq('session_id', session.id);
+        .eq('session_id', sessionId);
 
       if (sessionItemsError) throw sessionItemsError;
 
@@ -353,7 +369,7 @@ const ItemsList = ({ session, onBack }) => {
             name
           )
         `)
-        .eq('session_id', session.id);
+        .eq('session_id', sessionId);
 
       if (countsError) throw countsError;
 
@@ -444,29 +460,29 @@ const ItemsList = ({ session, onBack }) => {
  
   const subscribeToCounts = () => {
     const subscription = supabase
-      .channel(`counts:${session.id}`)
+      .channel(`counts:${sessionId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'counts',
-          filter: `session_id=eq.${session.id}`
+          filter: `session_id=eq.${sessionId}`
         },
         (payload) => {
-          
+
           handleRealtimeCountChange(payload);
         }
       )
       .subscribe((status) => {
-        
+
       });
 
     return () => {
       try {
         subscription.unsubscribe();
       } catch (e) {
-        
+
       }
     };
   };
@@ -585,7 +601,7 @@ const ItemsList = ({ session, onBack }) => {
     // Save as last selected location if it's a valid location
     if (newLocation && locations.some(loc => loc.name === newLocation)) {
       setLastSelectedLocation(newLocation);
-      localStorage.setItem(`lastSelectedLocation_${session.id}_${user.id}`, newLocation);
+      localStorage.setItem(`lastSelectedLocation_${sessionId}_${user.id}`, newLocation);
     }
   };
 
@@ -753,14 +769,14 @@ const ItemsList = ({ session, onBack }) => {
             <div className="flex justify-between items-center py-4">
               <div className="flex items-center gap-2">
                 <button
-                  onClick={onBack}
+                  onClick={() => navigate('/sessions')}
                   className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100"
                 >
                   <ChevronLeft className="h-6 w-6" />
                 </button>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900 truncate">
-                    {session.name}
+                    {session?.name || 'Loading session...'}
                   </h1>
                   <p className="text-gray-600 text-sm">
                     Loading items...
@@ -785,14 +801,14 @@ const ItemsList = ({ session, onBack }) => {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center gap-2">
               <button
-                onClick={onBack}
+                onClick={() => navigate('/sessions')}
                 className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100"
               >
                 <ChevronLeft className="h-6 w-6" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900 truncate">
-                  {session.name}
+                  {session?.name || 'Session'}
                 </h1>
                 <p className="text-gray-600 text-sm">
                   Items: {filteredItems.length} of {items.length}

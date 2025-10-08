@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { Package, Mail, Lock, AlertCircle, Info } from 'lucide-react';
 
 const LoginForm = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -14,7 +16,7 @@ const LoginForm = () => {
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, profile } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -44,6 +46,12 @@ const LoginForm = () => {
       } else {
         const { error } = await signIn(email, password);
         if (error) throw error;
+
+        // Navigate to home page after successful login
+        // The navigation will happen after the auth state updates
+        setTimeout(() => {
+          navigate('/home');
+        }, 100);
       }
     } catch (err) {
       setError(err.message || 'An unexpected error occurred. Please try again.');
