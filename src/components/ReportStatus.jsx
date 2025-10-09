@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut } from 'lucide-react';
+import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
 import BulkFollowUpModal from './BulkFollowUpModal';
+import KanbanBoard from './KanbanBoard';
 import { supabase } from '../lib/supabase';
 import writeXlsxFile from 'write-excel-file';
 
@@ -12,6 +13,7 @@ const ReportStatus = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'kanban'
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [statusType, setStatusType] = useState('kritis'); // 'kritis' or 'over'
   const [reports, setReports] = useState([]);
@@ -126,6 +128,27 @@ const ReportStatus = () => {
       setIsBulkStatusModalOpen(false);
     } catch (error) {
       console.error('Error updating bulk follow up status:', error);
+      throw error;
+    }
+  };
+
+  const handleKanbanStatusUpdate = async (itemId, newStatus) => {
+    try {
+      const { data, error } = await supabase
+        .from('report_status_raw_mat')
+        .update({
+          follow_up_status: newStatus,
+          user_follow_up: user.id
+        })
+        .eq('id', itemId)
+        .select();
+
+      if (error) throw error;
+
+      // Refresh reports
+      fetchReports();
+    } catch (error) {
+      console.error('Error updating follow up status:', error);
       throw error;
     }
   };
@@ -258,14 +281,14 @@ const ReportStatus = () => {
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add Status Kritis
+              Kritis
             </button>
             <button
               onClick={() => handleAddStatus('over')}
               className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add Status Over
+              Over
             </button>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-500" />
@@ -282,6 +305,32 @@ const ReportStatus = () => {
               >
                 <Download className="h-4 w-4" />
                 <span>Download</span>
+              </button>
+            </div>
+            
+            {/* View Toggle */}
+            <div className="flex items-center bg-gray-100 rounded-md p-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <LayoutList className="h-4 w-4" />
+                List
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'kanban'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Kanban
               </button>
             </div>
           </div>
@@ -314,31 +363,33 @@ const ReportStatus = () => {
 
           {/* Date filter moved next to action buttons */}
 
-          {/* Status Tabs */}
-          <div className="mb-6">
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8">
-                {[
-                  { key: 'all', label: 'All Status', count: reports.length },
-                  { key: 'open', label: 'Open', count: groupedReports.open.length },
-                  { key: 'on_progress', label: 'On Progress', count: groupedReports.on_progress.length },
-                  { key: 'closed', label: 'Closed', count: groupedReports.closed.length }
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                      activeTab === tab.key
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    {tab.label} ({tab.count})
-                  </button>
-                ))}
-              </nav>
+          {/* Status Tabs - Only show in list view */}
+          {viewMode === 'list' && (
+            <div className="mb-6">
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8">
+                  {[
+                    { key: 'all', label: 'All Status', count: reports.length },
+                    { key: 'open', label: 'Open', count: groupedReports.open.length },
+                    { key: 'on_progress', label: 'On Progress', count: groupedReports.on_progress.length },
+                    { key: 'closed', label: 'Closed', count: groupedReports.closed.length }
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                        activeTab === tab.key
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      {tab.label} ({tab.count})
+                    </button>
+                  ))}
+                </nav>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Loading State */}
           {loading ? (
@@ -348,44 +399,55 @@ const ReportStatus = () => {
               </div>
             </div>
           ) : (
-            /* Status Lists */
-            <div className="space-y-6">
-              {activeTab === 'all' || activeTab === 'open' ? (
-                <StatusList
-                  title="Open Status"
-                  items={groupedReports.open}
-                  getStatusIcon={getStatusIcon}
-                  getFollowUpIcon={getFollowUpIcon}
-                  emptyMessage="No open status reports"
-                  selectedItems={selectedItems}
-                  onSelectionChange={handleSelectionChange}
-                />
-              ) : null}
+            /* Status Lists or Kanban Board */
+            viewMode === 'list' ? (
+              <div className="space-y-6">
+                {activeTab === 'all' || activeTab === 'open' ? (
+                  <StatusList
+                    title="Open Status"
+                    items={groupedReports.open}
+                    getStatusIcon={getStatusIcon}
+                    getFollowUpIcon={getFollowUpIcon}
+                    emptyMessage="No open status reports"
+                    selectedItems={selectedItems}
+                    onSelectionChange={handleSelectionChange}
+                  />
+                ) : null}
 
-              {activeTab === 'all' || activeTab === 'on_progress' ? (
-                <StatusList
-                  title="On Progress Status"
-                  items={groupedReports.on_progress}
-                  getStatusIcon={getStatusIcon}
-                  getFollowUpIcon={getFollowUpIcon}
-                  emptyMessage="No on progress status reports"
-                  selectedItems={selectedItems}
-                  onSelectionChange={handleSelectionChange}
-                />
-              ) : null}
+                {activeTab === 'all' || activeTab === 'on_progress' ? (
+                  <StatusList
+                    title="On Progress Status"
+                    items={groupedReports.on_progress}
+                    getStatusIcon={getStatusIcon}
+                    getFollowUpIcon={getFollowUpIcon}
+                    emptyMessage="No on progress status reports"
+                    selectedItems={selectedItems}
+                    onSelectionChange={handleSelectionChange}
+                  />
+                ) : null}
 
-              {activeTab === 'all' || activeTab === 'closed' ? (
-                <StatusList
-                  title="Closed Status"
-                  items={groupedReports.closed}
-                  getStatusIcon={getStatusIcon}
-                  getFollowUpIcon={getFollowUpIcon}
-                  emptyMessage="No closed status reports"
-                  selectedItems={selectedItems}
-                  onSelectionChange={handleSelectionChange}
-                />
-              ) : null}
-            </div>
+                {activeTab === 'all' || activeTab === 'closed' ? (
+                  <StatusList
+                    title="Closed Status"
+                    items={groupedReports.closed}
+                    getStatusIcon={getStatusIcon}
+                    getFollowUpIcon={getFollowUpIcon}
+                    emptyMessage="No closed status reports"
+                    selectedItems={selectedItems}
+                    onSelectionChange={handleSelectionChange}
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <KanbanBoard
+                groupedReports={groupedReports}
+                getStatusIcon={getStatusIcon}
+                getFollowUpIcon={getFollowUpIcon}
+                onStatusUpdate={handleKanbanStatusUpdate}
+                selectedItems={selectedItems}
+                onSelectionChange={handleSelectionChange}
+              />
+            )
           )}
         </div>
       </main>
