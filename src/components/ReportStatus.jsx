@@ -290,22 +290,22 @@ const ReportStatus = () => {
               <Plus className="h-4 w-4" />
               Over
             </button>
+            <button
+              onClick={handleDownloadReport}
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center gap-2"
+              title="Download Excel"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Download</span>
+            </button>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-500" />
               <input
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-100 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-200 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               />
-              <button
-                onClick={handleDownloadReport}
-                className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 flex items-center gap-2"
-                title="Download Excel"
-              >
-                <Download className="h-4 w-4" />
-                <span>Download</span>
-              </button>
             </div>
             
             {/* View Toggle */}
