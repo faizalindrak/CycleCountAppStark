@@ -444,8 +444,6 @@ const ReportStatus = () => {
                 getStatusIcon={getStatusIcon}
                 getFollowUpIcon={getFollowUpIcon}
                 onStatusUpdate={handleKanbanStatusUpdate}
-                selectedItems={selectedItems}
-                onSelectionChange={handleSelectionChange}
               />
             )
           )}

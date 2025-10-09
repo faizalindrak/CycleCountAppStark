@@ -22,7 +22,7 @@ import { AlertTriangle, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import KanbanCardModal from './KanbanCardModal';
 
 // Compact Kanban Card Component
-const KanbanCard = ({ item, getStatusIcon, getFollowUpIcon, onCardClick, onSelectionChange, isSelected, isUpdating }) => {
+const KanbanCard = ({ item, getStatusIcon, getFollowUpIcon, onCardClick, isUpdating }) => {
   const {
     attributes,
     listeners,
@@ -42,8 +42,8 @@ const KanbanCard = ({ item, getStatusIcon, getFollowUpIcon, onCardClick, onSelec
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white border rounded-md p-3 mb-2 hover:shadow-md transition-shadow group relative ${
-        isUpdating ? 'border-blue-400 bg-blue-50 cursor-not-allowed' : 'border-gray-200 cursor-move'
+      className={`bg-white border rounded-md p-3 mb-2 hover:shadow-md transition-shadow relative ${
+        isUpdating ? 'border-blue-400 bg-blue-50' : 'border-gray-200 cursor-move'
       }`}
       onClick={() => !isUpdating && onCardClick(item)}
       {...attributes}
@@ -56,29 +56,21 @@ const KanbanCard = ({ item, getStatusIcon, getFollowUpIcon, onCardClick, onSelec
       )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => {
-              e.stopPropagation();
-              onSelectionChange(item.id, e.target.checked);
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-          />
           {getStatusIcon(item.inventory_status)}
           <span className="text-sm font-medium text-gray-900 truncate">
             {item.item_name}
           </span>
         </div>
-        {getFollowUpIcon(item.follow_up_status)}
+        <div className="flex-shrink-0">
+          {getFollowUpIcon(item.follow_up_status)}
+        </div>
       </div>
     </div>
   );
 };
 
 // Droppable Column Component
-const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon, onCardClick, onSelectionChange, selectedItems, updatingItems }) => {
+const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon, onCardClick, updatingItems }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
   });
@@ -140,8 +132,6 @@ const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon,
                 getStatusIcon={getStatusIcon}
                 getFollowUpIcon={getFollowUpIcon}
                 onCardClick={onCardClick}
-                onSelectionChange={onSelectionChange}
-                isSelected={selectedItems.includes(item.id)}
                 isUpdating={updatingItems?.has(item.id) || false}
               />
             ))
@@ -153,13 +143,11 @@ const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon,
 };
 
 // Main Kanban Board Component
-const KanbanBoard = ({ 
-  groupedReports, 
-  getStatusIcon, 
-  getFollowUpIcon, 
-  onStatusUpdate, 
-  selectedItems, 
-  onSelectionChange 
+const KanbanBoard = ({
+  groupedReports,
+  getStatusIcon,
+  getFollowUpIcon,
+  onStatusUpdate
 }) => {
   const [activeId, setActiveId] = useState(null);
   const [selectedCard, setSelectedCard] = useState(null);
@@ -269,8 +257,6 @@ const KanbanBoard = ({
             getStatusIcon={getStatusIcon}
             getFollowUpIcon={getFollowUpIcon}
             onCardClick={handleCardClick}
-            onSelectionChange={onSelectionChange}
-            selectedItems={selectedItems}
             updatingItems={updatingItems}
           />
           
@@ -281,11 +267,9 @@ const KanbanBoard = ({
             getStatusIcon={getStatusIcon}
             getFollowUpIcon={getFollowUpIcon}
             onCardClick={handleCardClick}
-            onSelectionChange={onSelectionChange}
-            selectedItems={selectedItems}
             updatingItems={updatingItems}
           />
-          
+
           <DroppableColumn
             title="Closed"
             status="closed"
@@ -293,8 +277,6 @@ const KanbanBoard = ({
             getStatusIcon={getStatusIcon}
             getFollowUpIcon={getFollowUpIcon}
             onCardClick={handleCardClick}
-            onSelectionChange={onSelectionChange}
-            selectedItems={selectedItems}
             updatingItems={updatingItems}
           />
         </div>
