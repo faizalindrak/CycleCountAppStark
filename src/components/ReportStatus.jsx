@@ -39,6 +39,35 @@ const ReportStatus = () => {
       const { data, error } = await query;
       if (error) throw error;
 
+      // Get unique SKUs and internal product codes from reports
+      const skuCodes = [...new Set((data || []).map(r => r.sku).filter(Boolean))];
+      const internalCodes = [...new Set((data || []).map(r => r.internal_product_code).filter(Boolean))];
+
+      // Fetch items data to get categories
+      let categoryMap = {};
+      if (skuCodes.length > 0 || internalCodes.length > 0) {
+        let itemsQuery = supabase.from('items').select('sku, internal_product_code, category');
+
+        // Build OR condition for matching either SKU or internal product code
+        const conditions = [];
+        if (skuCodes.length > 0) {
+          conditions.push(`sku.in.(${skuCodes.map(s => `"${s}"`).join(',')})`);
+        }
+        if (internalCodes.length > 0) {
+          conditions.push(`internal_product_code.in.(${internalCodes.map(c => `"${c}"`).join(',')})`);
+        }
+
+        if (conditions.length > 0) {
+          const { data: itemsData, error: itemsError } = await itemsQuery.or(conditions.join(','));
+          if (!itemsError && itemsData) {
+            itemsData.forEach(item => {
+              if (item.sku) categoryMap[item.sku] = item.category;
+              if (item.internal_product_code) categoryMap[item.internal_product_code] = item.category;
+            });
+          }
+        }
+      }
+
       // Map user_report and user_follow_up UUIDs to profile full names
       const userIds = [...new Set(
         (data || []).flatMap(r => [r.user_report, r.user_follow_up]).filter(Boolean)
@@ -56,6 +85,7 @@ const ReportStatus = () => {
 
       const enriched = (data || []).map(r => ({
         ...r,
+        category: categoryMap[r.sku] || categoryMap[r.internal_product_code] || 'Unknown',
         user_report_name: profileMap[r.user_report] || null,
         user_follow_up_name: profileMap[r.user_follow_up] || null
       }));
@@ -174,6 +204,7 @@ const ReportStatus = () => {
         { column: 'SKU', type: String, value: r => r.sku, width: 20 },
         { column: 'Internal Product Code', type: String, value: r => r.internal_product_code, width: 22 },
         { column: 'Item Name', type: String, value: r => r.item_name, width: 30 },
+        { column: 'Category', type: String, value: r => (r.category || ''), width: 20 },
         { column: 'Inventory Status', type: String, value: r => r.inventory_status, width: 18 },
         { column: 'Remarks', type: String, value: r => (r.remarks || ''), width: 40 },
         { column: 'Qty', type: Number, value: r => (typeof r.qty === 'number' ? r.qty : undefined), width: 10 },
@@ -243,7 +274,7 @@ const ReportStatus = () => {
                 <AlertTriangle className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Report Status Raw Material</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Report Status Raw Mat</h1>
                 <p className="text-gray-600">Monitor and manage raw material inventory status</p>
               </div>
             </div>
