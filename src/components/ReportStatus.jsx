@@ -289,17 +289,17 @@ const ReportStatus = () => {
   const handleDownloadReport = async () => {
     try {
       const schema = [
-        { column: 'Date', type: String, value: r => r.date_input, width: 14 },
-        { column: 'SKU', type: String, value: r => r.sku, width: 20 },
+        { column: 'Date', type: String, value: r => r.date_input, width: 12 },
+        { column: 'SKU', type: String, value: r => r.sku, width: 8 },
         { column: 'Internal Product Code', type: String, value: r => r.internal_product_code, width: 22 },
-        { column: 'Item Name', type: String, value: r => r.item_name, width: 30 },
+        { column: 'Item Name', type: String, value: r => r.item_name, width: 40 },
         { column: 'Category', type: String, value: r => (r.category || ''), width: 20 },
-        { column: 'Inventory Status', type: String, value: r => r.inventory_status, width: 18 },
+        { column: 'Inventory Status', type: String, value: r => r.inventory_status?.toUpperCase(), width: 16 },
         { column: 'Remarks', type: String, value: r => (r.remarks || ''), width: 40 },
         { column: 'Qty', type: Number, value: r => (typeof r.qty === 'number' ? r.qty : undefined), width: 10 },
         { column: 'Follow Up Status', type: String, value: r => r.follow_up_status, width: 18 },
-        { column: 'Created By (Name)', type: String, value: r => (r.user_report_name || ''), width: 24 },
-        { column: 'Updated By (Name)', type: String, value: r => (r.user_follow_up_name || ''), width: 24 },
+        { column: 'Created By', type: String, value: r => (r.user_report_name || ''), width: 14 },
+        { column: 'Updated By', type: String, value: r => (r.user_follow_up_name || ''), width: 14 },
         { column: 'Created At', type: String, value: r => new Date(r.created_at).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
         { column: 'Updated At', type: String, value: r => new Date(r.updated_at).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
       ];
