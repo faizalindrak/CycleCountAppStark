@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid } from 'lucide-react';
@@ -21,11 +21,100 @@ const ReportStatus = () => {
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
+  
+  // Refs to store subscriptions
+  const reportStatusSubscription = useRef(null);
+  const profilesSubscription = useRef(null);
+  const itemsSubscription = useRef(null);
 
   // Fetch reports on component mount and when filter changes
   useEffect(() => {
     fetchReports();
+    
+    // Set up real-time subscriptions
+    setupRealtimeSubscriptions();
+    
+    // Cleanup function to unsubscribe when component unmounts
+    return () => {
+      cleanupSubscriptions();
+    };
   }, [filterDate]);
+  
+  // Setup real-time subscriptions
+  const setupRealtimeSubscriptions = () => {
+    // Subscribe to report_status_raw_mat table changes
+    reportStatusSubscription.current = supabase
+      .channel('report_status_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'report_status_raw_mat',
+          filter: `date_input=eq.${filterDate}`
+        },
+        (payload) => {
+          console.log('Report status change received:', payload);
+          // Refresh reports when any change occurs
+          fetchReports();
+        }
+      )
+      .subscribe();
+      
+    // Subscribe to profiles table changes (for user name updates)
+    profilesSubscription.current = supabase
+      .channel('profiles_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles'
+        },
+        (payload) => {
+          console.log('Profile change received:', payload);
+          // Refresh reports to get updated user names
+          fetchReports();
+        }
+      )
+      .subscribe();
+      
+    // Subscribe to items table changes (for category updates)
+    itemsSubscription.current = supabase
+      .channel('items_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'items'
+        },
+        (payload) => {
+          console.log('Items change received:', payload);
+          // Refresh reports to get updated categories
+          fetchReports();
+        }
+      )
+      .subscribe();
+  };
+  
+  // Cleanup subscriptions
+  const cleanupSubscriptions = () => {
+    if (reportStatusSubscription.current) {
+      supabase.removeChannel(reportStatusSubscription.current);
+      reportStatusSubscription.current = null;
+    }
+    
+    if (profilesSubscription.current) {
+      supabase.removeChannel(profilesSubscription.current);
+      profilesSubscription.current = null;
+    }
+    
+    if (itemsSubscription.current) {
+      supabase.removeChannel(itemsSubscription.current);
+      itemsSubscription.current = null;
+    }
+  };
 
   const fetchReports = async () => {
     try {
