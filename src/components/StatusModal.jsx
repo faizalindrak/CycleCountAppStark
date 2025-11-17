@@ -364,14 +364,14 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Category Selection - Only show if not scanned item */}
           {!scannedItem && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Kategori <span className="text-gray-500">(Opsional)</span>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Kategori:
               </label>
               <select
                 value={selectedCategory}
                 onChange={(e) => handleCategoryChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 disabled={itemsLoading}
               >
                 <option value="">Semua Kategori</option>
@@ -381,11 +381,6 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
                   </option>
                 ))}
               </select>
-              {selectedCategory && (
-                <p className="mt-1 text-sm text-blue-600">
-                  Filter aktif: {selectedCategory}
-                </p>
-              )}
             </div>
           )}
 
