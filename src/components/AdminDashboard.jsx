@@ -93,14 +93,44 @@ const AdminDashboard = ({ user, signOut }) => {
       }
       isFetchingRef.current = true;
 
-      // Fetch all data in parallel for better performance
-      const [sessionsRes, itemsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
+      // Fetch all data - for items, use pagination to ensure we get all items
+      let allItems = [];
+      let itemsStart = 0;
+      const itemsPageSize = 1000;
+      let hasMoreItems = true;
+
+      // Fetch items in chunks to handle large datasets
+      while (hasMoreItems) {
+        const { data: itemsChunk, error: itemsChunkError } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at')
+          .order('item_name')
+          .range(itemsStart, itemsStart + itemsPageSize - 1);
+
+        if (itemsChunkError) throw itemsChunkError;
+
+        if (itemsChunk && itemsChunk.length > 0) {
+          allItems = allItems.concat(itemsChunk);
+          itemsStart += itemsPageSize;
+
+          // If we got fewer items than page size, we've reached the end
+          if (itemsChunk.length < itemsPageSize) {
+            hasMoreItems = false;
+          }
+        } else {
+          hasMoreItems = false;
+        }
+      }
+
+      // Fetch other data in parallel
+      const [sessionsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
         supabase.from('sessions').select(`*, session_users (user_id)`).order('created_date', { ascending: false }),
-        supabase.from('items').select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at').order('item_name').range(0, 9999),
         supabase.from('categories').select('*').order('name'),
         supabase.from('location_usage').select('*').order('name'),
         supabase.from('profiles').select('*').order('name')
       ]);
+
+      const itemsRes = { data: allItems, error: null };
 
       // Handle sessions with user profiles
       if (sessionsRes.data) {
@@ -214,18 +244,39 @@ const AdminDashboard = ({ user, signOut }) => {
   const refreshItemsData = async () => {
     try {
       console.log('Refreshing items data after tag update...');
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('items')
-        .select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at')
-        .order('item_name');
 
-      if (itemsError) {
-        console.error('Supabase error fetching items:', itemsError);
-        throw itemsError;
+      // Fetch all items using pagination to handle large datasets
+      let allItems = [];
+      let itemsStart = 0;
+      const itemsPageSize = 1000;
+      let hasMoreItems = true;
+
+      while (hasMoreItems) {
+        const { data: itemsChunk, error: itemsChunkError } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at')
+          .order('item_name')
+          .range(itemsStart, itemsStart + itemsPageSize - 1);
+
+        if (itemsChunkError) {
+          console.error('Supabase error fetching items:', itemsChunkError);
+          throw itemsChunkError;
+        }
+
+        if (itemsChunk && itemsChunk.length > 0) {
+          allItems = allItems.concat(itemsChunk);
+          itemsStart += itemsPageSize;
+
+          if (itemsChunk.length < itemsPageSize) {
+            hasMoreItems = false;
+          }
+        } else {
+          hasMoreItems = false;
+        }
       }
 
-      console.log('Successfully fetched updated items:', itemsData?.length || 0, 'items');
-      setItems(itemsData);
+      console.log('Successfully fetched updated items:', allItems.length, 'items');
+      setItems(allItems);
 
       // Update localStorage cache with fresh data
       const cached = localStorage.getItem('adminDashboardData');
@@ -627,7 +678,49 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
   const [showPreview, setShowPreview] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState({ inCsv: [], inDb: [] });
 
+  // Search and pagination state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
   // Data is now passed as props from parent component
+
+  // Filter items based on search term
+  const filteredItems = React.useMemo(() => {
+    if (!searchTerm.trim()) return items;
+
+    const searchLower = searchTerm.toLowerCase().trim();
+    return items.filter(item => {
+      return (
+        item.sku?.toLowerCase().includes(searchLower) ||
+        item.item_code?.toLowerCase().includes(searchLower) ||
+        item.item_name?.toLowerCase().includes(searchLower) ||
+        item.internal_product_code?.toLowerCase().includes(searchLower) ||
+        item.category?.toLowerCase().includes(searchLower) ||
+        item.uom?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [items, searchTerm]);
+
+  // Paginate filtered items
+  const paginatedItems = React.useMemo(() => {
+    if (itemsPerPage === -1) return filteredItems; // Show all
+
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredItems.slice(startIndex, endIndex);
+  }, [filteredItems, currentPage, itemsPerPage]);
+
+  // Calculate total pages
+  const totalPages = React.useMemo(() => {
+    if (itemsPerPage === -1) return 1;
+    return Math.ceil(filteredItems.length / itemsPerPage);
+  }, [filteredItems.length, itemsPerPage]);
+
+  // Reset to page 1 when search term or items per page changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, itemsPerPage]);
 
   const handleCreateItem = () => {
     setEditingItem(null);
@@ -980,6 +1073,48 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
         </div>
       </div>
 
+      {/* Search and Display Options */}
+      <div className="mb-4 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <input
+            type="text"
+            placeholder="Search by SKU, Item Code, Item Name, Product Code, Category, UOM..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-500 text-white p-1 rounded-md hover:bg-gray-600"
+              title="Clear search"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2 items-center">
+          <label className="text-sm text-gray-600 whitespace-nowrap">Display:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value={10}>10 per page</option>
+            <option value={50}>50 per page</option>
+            <option value={100}>100 per page</option>
+            <option value={-1}>All items</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Items Count */}
+      <div className="mb-3 text-sm text-gray-600">
+        Showing {paginatedItems.length} of {filteredItems.length} items
+        {searchTerm && ` (filtered from ${items.length} total)`}
+      </div>
+
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -1005,8 +1140,15 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {items.map((item) => (
-              <tr key={item.id}>
+            {paginatedItems.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                  {searchTerm ? 'No items found matching your search' : 'No items available'}
+                </td>
+              </tr>
+            ) : (
+              paginatedItems.map((item) => (
+                <tr key={item.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
                     {item.sku}
@@ -1042,10 +1184,77 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
                   </button>
                 </td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls */}
+      {itemsPerPage !== -1 && totalPages > 1 && (
+        <div className="mt-4 flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              First
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-3 py-1 border rounded-md ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
 
       {showBulkModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
