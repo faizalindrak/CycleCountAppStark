@@ -485,9 +485,17 @@ const ReportStatus = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'kritis':
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-600 text-white">
+            Critical
+          </span>
+        );
       case 'over':
-        return <TrendingUp className="h-4 w-4 text-orange-500" />;
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-800 text-white">
+            Over
+          </span>
+        );
       default:
         return null;
     }
