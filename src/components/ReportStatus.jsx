@@ -119,14 +119,28 @@ const ReportStatus = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      let query = supabase
+
+      // Fetch reports for the selected date
+      const { data: dateReports, error: dateError } = await supabase
         .from('report_status_raw_mat')
         .select('*')
         .eq('date_input', filterDate)
         .order('created_at', { ascending: false });
 
-      const { data, error } = await query;
-      if (error) throw error;
+      if (dateError) throw dateError;
+
+      // Fetch all open and on_progress reports (regardless of date)
+      const { data: activeReports, error: activeError } = await supabase
+        .from('report_status_raw_mat')
+        .select('*')
+        .in('follow_up_status', ['open', 'on_progress'])
+        .neq('date_input', filterDate) // Exclude the ones already in dateReports
+        .order('created_at', { ascending: false });
+
+      if (activeError) throw activeError;
+
+      // Combine both datasets
+      const data = [...(dateReports || []), ...(activeReports || [])];
 
       // Get unique SKUs and internal product codes from reports
       const skuCodes = [...new Set((data || []).map(r => r.sku).filter(Boolean))];
@@ -576,6 +590,12 @@ const ReportStatus = () => {
         onClose={() => setIsStatusModalOpen(false)}
         onSubmit={handleStatusSubmit}
         statusType={statusType}
+        activeSkus={[...new Set(
+          reports
+            .filter(r => r.follow_up_status === 'open' || r.follow_up_status === 'on_progress')
+            .map(r => r.sku)
+            .filter(Boolean)
+        )]}
       />
 
       <BulkFollowUpModal
