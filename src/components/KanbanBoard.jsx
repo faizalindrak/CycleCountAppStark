@@ -3,6 +3,8 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  pointerWithin,
+  rectIntersection,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -102,13 +104,13 @@ const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon,
   };
 
   return (
-    <div 
-      ref={setNodeRef}
-      className={`flex-1 min-w-0 ${getStatusColor(status)} border-2 rounded-lg p-4 transition-colors ${
+    <div
+      className={`flex-1 min-w-0 ${getStatusColor(status)} border-2 rounded-lg transition-colors flex flex-col ${
         isOver ? 'border-blue-400 bg-blue-100' : ''
       }`}
+      style={{ maxHeight: 'calc(100vh - 280px)' }}
     >
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 p-4 pb-3 flex-shrink-0">
         {getColumnStatusIcon(status)}
         <h3 className="font-semibold text-gray-900 capitalize">
           {status.replace('_', ' ')}
@@ -117,27 +119,32 @@ const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon,
           {items.length}
         </span>
       </div>
-      
-      <SortableContext items={items.map(item => item.id)} strategy={verticalListSortingStrategy}>
-        <div className="min-h-[200px]">
-          {items.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-sm">
-              No items in {status.replace('_', ' ')}
-            </div>
-          ) : (
-            items.map((item) => (
-              <KanbanCard
-                key={item.id}
-                item={item}
-                getStatusIcon={getStatusIcon}
-                getFollowUpIcon={getFollowUpIcon}
-                onCardClick={onCardClick}
-                isUpdating={updatingItems?.has(item.id) || false}
-              />
-            ))
-          )}
-        </div>
-      </SortableContext>
+
+      <div
+        ref={setNodeRef}
+        className="flex-1 overflow-y-auto px-4 pb-4"
+      >
+        <SortableContext items={items.map(item => item.id)} strategy={verticalListSortingStrategy}>
+          <div className="min-h-[200px]">
+            {items.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 text-sm">
+                No items in {status.replace('_', ' ')}
+              </div>
+            ) : (
+              items.map((item) => (
+                <KanbanCard
+                  key={item.id}
+                  item={item}
+                  getStatusIcon={getStatusIcon}
+                  getFollowUpIcon={getFollowUpIcon}
+                  onCardClick={onCardClick}
+                  isUpdating={updatingItems?.has(item.id) || false}
+                />
+              ))
+            )}
+          </div>
+        </SortableContext>
+      </div>
     </div>
   );
 };
@@ -164,6 +171,25 @@ const KanbanBoard = ({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Custom collision detection that prioritizes pointer location
+  // This works better with scrollable columns
+  const customCollisionDetection = (args) => {
+    // First, try to find collisions using pointer location
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions;
+    }
+
+    // If no pointer collisions, try rectangle intersection
+    const intersectionCollisions = rectIntersection(args);
+    if (intersectionCollisions.length > 0) {
+      return intersectionCollisions;
+    }
+
+    // Finally, fall back to closest center
+    return closestCenter(args);
+  };
 
   const handleDragStart = (event) => {
     setActiveId(event.active.id);
@@ -245,7 +271,7 @@ const KanbanBoard = ({
     <>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={customCollisionDetection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
