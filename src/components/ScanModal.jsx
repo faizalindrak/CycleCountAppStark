@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Camera, AlertCircle, CheckCircle } from 'lucide-react';
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import { BrowserQRCodeReader, NotFoundException, DecodeHintType, BarcodeFormat } from '@zxing/library';
 import { isMobileDevice, hasCameraSupport, getDeviceOrientation, isSecureContext } from '../lib/deviceDetection';
 
 const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const [scanResult, setScanResult] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState(''); // For validation errors while camera is active
   const [hasPermission, setHasPermission] = useState(null);
   const [orientation, setOrientation] = useState('portrait');
 
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
   const streamRef = useRef(null);
+  const validationErrorTimeoutRef = useRef(null);
 
   // Update orientation when device orientation changes
   useEffect(() => {
@@ -24,11 +26,29 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     return () => window.removeEventListener('orientationchange', updateOrientation);
   }, []);
 
+  // Auto-clear validation errors after 3 seconds
+  useEffect(() => {
+    if (validationError) {
+      if (validationErrorTimeoutRef.current) {
+        clearTimeout(validationErrorTimeoutRef.current);
+      }
+      validationErrorTimeoutRef.current = setTimeout(() => {
+        setValidationError('');
+      }, 3000);
+    }
+    return () => {
+      if (validationErrorTimeoutRef.current) {
+        clearTimeout(validationErrorTimeoutRef.current);
+      }
+    };
+  }, [validationError]);
+
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setScanResult('');
       setError('');
+      setValidationError('');
       setIsScanning(false);
       setHasPermission(null);
     } else {
@@ -37,6 +57,9 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
     return () => {
       stopScanning();
+      if (validationErrorTimeoutRef.current) {
+        clearTimeout(validationErrorTimeoutRef.current);
+      }
     };
   }, [isOpen]);
 
@@ -73,9 +96,17 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
         return;
       }
 
-      // Explicitly request camera permission first
+      // Explicitly request camera permission first with optimized constraints
       try {
-        const permissionStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const permissionStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: isMobileDevice() ? { ideal: 'environment' } : 'user',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            focusMode: { ideal: 'continuous' },
+            aspectRatio: { ideal: 16/9 }
+          }
+        });
         // Immediately stop the stream as we'll use ZXing's method
         permissionStream.getTracks().forEach(track => track.stop());
       } catch (permErr) {
@@ -90,8 +121,13 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
         }
       }
 
-      // Initialize ZXing BrowserMultiFormatReader
-      const codeReader = new BrowserMultiFormatReader();
+      // Configure decoding hints for QR code optimization
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+
+      // Initialize ZXing BrowserQRCodeReader with hints for faster QR detection
+      const codeReader = new BrowserQRCodeReader(hints);
       codeReaderRef.current = codeReader;
 
       // Get available video devices and select back camera for mobile
@@ -118,17 +154,28 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
       setHasPermission(true);
 
-      // Start decoding from video device
+      // Enhanced video constraints for better QR detection
+      const constraints = {
+        video: {
+          deviceId: selectedDeviceId,
+          facingMode: isMobileDevice() ? { ideal: 'environment' } : 'user',
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 },
+          focusMode: { ideal: 'continuous' },
+          aspectRatio: { ideal: 16/9 }
+        }
+      };
+
+      // Start decoding from video device with optimized constraints
       try {
-        await codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
+        await codeReader.decodeFromConstraints(constraints, videoRef.current, (result, err) => {
           if (result) {
-            console.log('Barcode detected:', result);
+            console.log('QR Code detected:', result);
             handleScanSuccess(result);
           }
           if (err && !(err instanceof NotFoundException)) {
             console.error('Scanning error:', err);
-            setError('Scanning failed. Please try again.');
-            setIsScanning(false);
+            // Don't stop scanning on minor errors, just log them
           }
         });
       } catch (decodeErr) {
@@ -182,17 +229,23 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
   const handleScanSuccess = (result) => {
     const scannedText = result.text;
-    setScanResult(scannedText);
-    setIsScanning(false);
-    stopScanning();
+    console.log('QR Code scanned:', scannedText);
 
     // Parse the scanned result to extract internal_product_code
     const parsedCode = parseScannedCode(scannedText);
 
     if (parsedCode) {
-      onScanSuccess(parsedCode, scannedText);
+      // Clear any previous validation errors
+      setValidationError('');
+
+      // Call parent's onScanSuccess with parsed code and error callback
+      onScanSuccess(parsedCode, scannedText, (errorMessage) => {
+        // Parent can call this to show validation error without closing modal
+        setValidationError(errorMessage);
+      });
     } else {
-      setError('Invalid product code format. Expected format: [8-digit prefix]JI4ACO-GCAS17BK04');
+      // Show validation error for invalid format
+      setValidationError('Format QR code tidak valid');
       onScanError && onScanError('Invalid format');
     }
   };
@@ -309,10 +362,48 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 muted
               />
 
+              {/* Scanning frame guide */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="relative w-64 h-64">
+                  {/* Scanning frame corners */}
+                  <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500"></div>
+                  <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500"></div>
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500"></div>
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500"></div>
+
+                  {/* Center crosshair */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                    <div className="w-6 h-0.5 bg-blue-500 opacity-50"></div>
+                    <div className="w-0.5 h-6 bg-blue-500 opacity-50 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
+                  </div>
+                </div>
+              </div>
+
               {/* Scanning indicator */}
-              <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+              <div className="absolute top-2 left-2 bg-green-500 text-white px-3 py-1.5 rounded-md text-xs font-medium shadow-lg flex items-center gap-1.5">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                 Scanning...
               </div>
+
+              {/* Helper text */}
+              <div className="absolute bottom-4 left-0 right-0 text-center">
+                <div className="bg-black bg-opacity-60 text-white px-4 py-2 rounded-lg inline-block text-sm">
+                  Position QR code within frame
+                </div>
+              </div>
+
+              {/* Validation Error Overlay */}
+              {validationError && (
+                <div className="absolute top-1/2 left-0 right-0 transform -translate-y-1/2 flex justify-center px-4">
+                  <div className="bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl max-w-sm flex items-start gap-2 animate-pulse">
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">{validationError}</p>
+                      <p className="text-xs mt-1 opacity-90">Silakan scan QR code lain</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : isScanning ? (
             <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '400px' }}>
@@ -323,10 +414,48 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                 muted
               />
 
+              {/* Scanning frame guide */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="relative w-64 h-64">
+                  {/* Scanning frame corners */}
+                  <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500"></div>
+                  <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500"></div>
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500"></div>
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500"></div>
+
+                  {/* Center crosshair */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                    <div className="w-6 h-0.5 bg-blue-500 opacity-50"></div>
+                    <div className="w-0.5 h-6 bg-blue-500 opacity-50 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
+                  </div>
+                </div>
+              </div>
+
               {/* Scanning indicator */}
-              <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+              <div className="absolute top-2 left-2 bg-green-500 text-white px-3 py-1.5 rounded-md text-xs font-medium shadow-lg flex items-center gap-1.5">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                 Scanning...
               </div>
+
+              {/* Helper text */}
+              <div className="absolute bottom-4 left-0 right-0 text-center">
+                <div className="bg-black bg-opacity-60 text-white px-4 py-2 rounded-lg inline-block text-sm">
+                  Position QR code within frame
+                </div>
+              </div>
+
+              {/* Validation Error Overlay */}
+              {validationError && (
+                <div className="absolute top-1/2 left-0 right-0 transform -translate-y-1/2 flex justify-center px-4">
+                  <div className="bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl max-w-sm flex items-start gap-2 animate-pulse">
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">{validationError}</p>
+                      <p className="text-xs mt-1 opacity-90">Silakan scan QR code lain</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : scanResult ? (
             <div className="text-center py-8">
