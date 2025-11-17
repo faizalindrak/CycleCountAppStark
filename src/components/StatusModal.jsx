@@ -74,7 +74,8 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
       const { data, error } = await supabase
         .from('items')
         .select('id, sku, item_code, item_name, internal_product_code')
-        .order('item_name');
+        .order('item_name')
+        .range(0, 9999); // Fetch up to 10,000 items (default Supabase limit is 1000)
 
       if (error) {
         console.error('Supabase error fetching items:', error);
