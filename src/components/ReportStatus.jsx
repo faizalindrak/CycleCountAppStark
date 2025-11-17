@@ -729,7 +729,10 @@ const ReportStatus = () => {
         statusType={statusType}
         activeSkus={[...new Set(
           reports
-            .filter(r => r.follow_up_status === 'open' || r.follow_up_status === 'on_progress')
+            .filter(r =>
+              (r.follow_up_status === 'open' || r.follow_up_status === 'on_progress') &&
+              r.date_input === filterDate // Only filter SKUs active on the current selected date
+            )
             .map(r => r.sku)
             .filter(Boolean)
         )]}
