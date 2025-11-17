@@ -177,18 +177,27 @@ const KanbanBoard = ({
       return;
     }
 
-    // Find the source and destination columns
+    // Find the source column
     const sourceColumn = Object.keys(groupedReports).find(column =>
       groupedReports[column].some(item => item.id === active.id)
     );
-    
-    // The over.id should be the column status ('open', 'on_progress', 'closed')
-    const destinationColumn = over.id;
-    
+
+    // Determine destination column
+    // Check if over.id is a column status directly
+    let destinationColumn = over.id;
+
+    // If not a column status, find which column the card belongs to
+    if (!['open', 'on_progress', 'closed'].includes(over.id)) {
+      destinationColumn = Object.keys(groupedReports).find(column =>
+        groupedReports[column].some(item => item.id === over.id)
+      );
+    }
+
     if (sourceColumn && destinationColumn && sourceColumn !== destinationColumn) {
+      // Don't clear activeId yet to prevent blinking
       // Add to updating items for loading state
       setUpdatingItems(prev => new Set(prev).add(active.id));
-      
+
       try {
         // Update the status in the database
         await onStatusUpdate(active.id, destinationColumn);

@@ -365,6 +365,16 @@ const ReportStatus = () => {
   };
 
   const handleKanbanStatusUpdate = async (itemId, newStatus) => {
+    // Optimistic update: Update local state immediately
+    const previousReports = [...reports];
+    setReports(prevReports =>
+      prevReports.map(report =>
+        report.id === itemId
+          ? { ...report, follow_up_status: newStatus, user_follow_up: user.id }
+          : report
+      )
+    );
+
     try {
       const { data, error } = await supabase
         .from('report_status_raw_mat')
@@ -377,10 +387,11 @@ const ReportStatus = () => {
 
       if (error) throw error;
 
-      // Refresh reports
-      fetchReports();
+      // Don't refresh - optimistic update already applied
     } catch (error) {
       console.error('Error updating follow up status:', error);
+      // Revert to previous state on error
+      setReports(previousReports);
       throw error;
     }
   };
