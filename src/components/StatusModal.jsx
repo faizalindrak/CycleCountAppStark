@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, AlertTriangle, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] }) => {
+const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], scannedItem = null }) => {
   const [formData, setFormData] = useState({
     sku: '',
     internal_product_code: '',
@@ -18,16 +18,17 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] })
   const [itemsLoading, setItemsLoading] = useState(true);
   const [itemsError, setItemsError] = useState('');
   const [errors, setErrors] = useState({});
+  const [selectedStatusType, setSelectedStatusType] = useState(statusType);
 
-  // Fetch items when modal opens
+  // Fetch items when modal opens (skip if scannedItem is provided)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !scannedItem) {
       // Small delay to ensure reset happens first
       setTimeout(() => {
         fetchItems();
       }, 100);
     }
-  }, [isOpen]);
+  }, [isOpen, scannedItem]);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -35,16 +36,31 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] })
       // Auto-reset all states when modal opens to prevent stuck states
       resetModalState();
 
-      // Also reset form data
-      setFormData({
-        sku: '',
-        internal_product_code: '',
-        item_name: '',
-        remarks: '',
-        qty: ''
-      });
+      // Set status type
+      setSelectedStatusType(statusType);
+
+      // If scannedItem is provided, set it as selected item
+      if (scannedItem) {
+        setSelectedItem(scannedItem);
+        setFormData({
+          sku: scannedItem.sku,
+          internal_product_code: scannedItem.internal_product_code || '',
+          item_name: scannedItem.item_name,
+          remarks: '',
+          qty: ''
+        });
+      } else {
+        // Reset form data if no scanned item
+        setFormData({
+          sku: '',
+          internal_product_code: '',
+          item_name: '',
+          remarks: '',
+          qty: ''
+        });
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, scannedItem, statusType]);
 
   const fetchItems = async () => {
     try {
@@ -157,7 +173,8 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] })
     try {
       const submitData = {
         ...formData,
-        qty: formData.qty ? parseInt(formData.qty) : null
+        qty: formData.qty ? parseInt(formData.qty) : null,
+        inventory_status: selectedStatusType // Include the selected status type
       };
 
       console.log('Submitting data:', submitData);
@@ -214,12 +231,21 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] })
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <h3 className="text-lg font-bold flex items-center gap-2">
-            {statusType === 'kritis' ? (
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+            {scannedItem ? (
+              <>
+                <AlertTriangle className="h-5 w-5 text-blue-500" />
+                Add Report - Scanned Item
+              </>
             ) : (
-              <TrendingUp className="h-5 w-5 text-orange-500" />
+              <>
+                {selectedStatusType === 'kritis' ? (
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                ) : (
+                  <TrendingUp className="h-5 w-5 text-orange-500" />
+                )}
+                Add Status {selectedStatusType === 'kritis' ? 'Kritis' : 'Over'}
+              </>
             )}
-            Add Status {statusType === 'kritis' ? 'Kritis' : 'Over'}
           </h3>
           <div className="flex items-center gap-2">
             {!itemsLoading && !itemsError && (
@@ -260,7 +286,18 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] })
               </div>
             )}
 
-            {itemsLoading ? (
+            {scannedItem ? (
+              // If item is from scan, just show the selected item
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <div className="text-sm">
+                  <div><strong>Scanned Item:</strong> {scannedItem.item_name}</div>
+                  <div><strong>SKU:</strong> {scannedItem.sku}</div>
+                  {scannedItem.internal_product_code && (
+                    <div><strong>Product Code:</strong> {scannedItem.internal_product_code}</div>
+                  )}
+                </div>
+              </div>
+            ) : itemsLoading ? (
               <div className="flex items-center justify-center p-4 border border-gray-300 rounded-md">
                 <div className="text-sm text-gray-600">Loading items...</div>
               </div>
@@ -317,8 +354,8 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] })
             {errors.item && <p className="mt-1 text-sm text-red-600">{errors.item}</p>}
           </div>
 
-          {/* Selected Item Info */}
-          {selectedItem && (
+          {/* Selected Item Info - Only show if not scanned item (scanned item already shown above) */}
+          {selectedItem && !scannedItem && (
             <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
               <div className="text-sm">
                 <div><strong>Selected Item:</strong> {selectedItem.item_name}</div>
@@ -330,21 +367,56 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] })
             </div>
           )}
 
-          {/* Status - Read Only */}
+          {/* Status - Editable if scanned, Read-only if manual */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Status
+              Status {scannedItem && <span className="text-red-500">*</span>}
             </label>
-            <div className="flex items-center gap-2 p-2 bg-gray-100 rounded-md">
-              {statusType === 'kritis' ? (
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-              ) : (
-                <TrendingUp className="h-4 w-4 text-orange-500" />
-              )}
-              <span className={`font-medium ${statusType === 'kritis' ? 'text-red-600' : 'text-orange-600'}`}>
-                {statusType === 'kritis' ? 'Kritis' : 'Over'}
-              </span>
-            </div>
+            {scannedItem ? (
+              // Editable toggle for scanned items
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatusType('kritis')}
+                  className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-md border-2 transition-all ${
+                    selectedStatusType === 'kritis'
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-gray-300 bg-white hover:border-red-300'
+                  }`}
+                >
+                  <AlertTriangle className={`h-5 w-5 ${selectedStatusType === 'kritis' ? 'text-red-500' : 'text-gray-400'}`} />
+                  <span className={`font-medium ${selectedStatusType === 'kritis' ? 'text-red-600' : 'text-gray-600'}`}>
+                    Kritis
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatusType('over')}
+                  className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-md border-2 transition-all ${
+                    selectedStatusType === 'over'
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-gray-300 bg-white hover:border-orange-300'
+                  }`}
+                >
+                  <TrendingUp className={`h-5 w-5 ${selectedStatusType === 'over' ? 'text-orange-500' : 'text-gray-400'}`} />
+                  <span className={`font-medium ${selectedStatusType === 'over' ? 'text-orange-600' : 'text-gray-600'}`}>
+                    Over
+                  </span>
+                </button>
+              </div>
+            ) : (
+              // Read-only display for manual entry
+              <div className="flex items-center gap-2 p-2 bg-gray-100 rounded-md">
+                {selectedStatusType === 'kritis' ? (
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                ) : (
+                  <TrendingUp className="h-4 w-4 text-orange-500" />
+                )}
+                <span className={`font-medium ${selectedStatusType === 'kritis' ? 'text-red-600' : 'text-orange-600'}`}>
+                  {selectedStatusType === 'kritis' ? 'Kritis' : 'Over'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Quantity */}
@@ -402,7 +474,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] })
               type="submit"
               disabled={loading || !selectedItem}
               className={`px-4 py-2 rounded-md text-white ${
-                statusType === 'kritis'
+                selectedStatusType === 'kritis'
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-orange-600 hover:bg-orange-700'
               } disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}

@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid } from 'lucide-react';
+import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
 import BulkFollowUpModal from './BulkFollowUpModal';
 import KanbanBoard from './KanbanBoard';
+import ScanModal from './ScanModal';
 import { supabase } from '../lib/supabase';
+import { isMobileDevice } from '../lib/deviceDetection';
 import writeXlsxFile from 'write-excel-file';
 
 const ReportStatus = () => {
@@ -21,19 +23,32 @@ const ReportStatus = () => {
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
-  
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scannedItem, setScannedItem] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', type: '' }); // type: 'success' | 'error' | 'warning'
+
   // Refs to store subscriptions
   const reportStatusSubscription = useRef(null);
   const profilesSubscription = useRef(null);
   const itemsSubscription = useRef(null);
 
+  // Auto-hide toast after 4 seconds
+  useEffect(() => {
+    if (toast.show) {
+      const timer = setTimeout(() => {
+        setToast({ show: false, message: '', type: '' });
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.show]);
+
   // Fetch reports on component mount and when filter changes
   useEffect(() => {
     fetchReports();
-    
+
     // Set up real-time subscriptions
     setupRealtimeSubscriptions();
-    
+
     // Cleanup function to unsubscribe when component unmounts
     return () => {
       cleanupSubscriptions();
@@ -201,32 +216,116 @@ const ReportStatus = () => {
     }
   };
 
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+  };
+
   const handleAddStatus = (type) => {
     setStatusType(type);
+    setScannedItem(null); // Clear scanned item when manually adding
     setIsStatusModalOpen(true);
+  };
+
+  const handleScanSuccess = async (parsedCode, originalScan) => {
+    try {
+      // Find item from database by internal_product_code
+      const { data: itemData, error } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code')
+        .eq('internal_product_code', parsedCode)
+        .single();
+
+      if (error || !itemData) {
+        console.log('Scanned code not found in items:', parsedCode);
+        showToast(`Item dengan kode ${parsedCode} tidak ditemukan`, 'error');
+        setShowScanModal(false);
+        return;
+      }
+
+      // Check if SKU is already active
+      const activeSkus = [
+        ...new Set(
+          reports
+            .filter(r => r.follow_up_status === 'open' || r.follow_up_status === 'on_progress')
+            .map(r => r.sku)
+            .filter(Boolean)
+        )
+      ];
+
+      if (activeSkus.includes(itemData.sku)) {
+        showToast(`SKU ${itemData.sku} sudah ada dalam status Open/On Progress`, 'warning');
+        setShowScanModal(false);
+        return;
+      }
+
+      // Set scanned item and close scan modal
+      setScannedItem(itemData);
+      setShowScanModal(false);
+
+      // Show success toast for scanned item
+      showToast(`Item berhasil di-scan: ${itemData.item_name}`, 'success');
+
+      // Open status modal - user will select kritis/over
+      // For now, we'll default to kritis, but user can change in modal
+      setStatusType('kritis');
+      setIsStatusModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching scanned item:', error);
+      showToast('Terjadi kesalahan saat memproses scan', 'error');
+      setShowScanModal(false);
+    }
+  };
+
+  const handleScanError = (error) => {
+    console.error('Scan error:', error);
+    // Error is already handled in ScanModal component
   };
 
   const handleStatusSubmit = async (formData) => {
     console.log('handleStatusSubmit called with:', formData);
+
+    // Track if this was a scanned item submission
+    const wasScannedItem = scannedItem !== null;
+    const itemName = formData.item_name;
+    const statusType = formData.inventory_status;
+
     try {
       const { data, error } = await supabase
         .from('report_status_raw_mat')
         .insert([{
           ...formData,
           user_report: user.id,
-          inventory_status: statusType
+          date_input: filterDate // Use the selected filter date
+          // inventory_status is already included in formData from StatusModal
         }])
         .select();
 
       if (error) {
         console.error('Supabase error:', error);
+        showToast(`Gagal menyimpan report: ${error.message}`, 'error');
         throw error;
       }
 
       console.log('Insert successful:', data);
+
+      // Show success toast
+      showToast(
+        `Report ${statusType?.toUpperCase()} berhasil ditambahkan: ${itemName}`,
+        'success'
+      );
+
       // Refresh reports
       fetchReports();
       setIsStatusModalOpen(false);
+      setScannedItem(null); // Clear scanned item after successful submit
+
+      // If this was from a scanned item, open scan modal again for next scan
+      if (wasScannedItem) {
+        // Small delay to ensure StatusModal is fully closed first
+        setTimeout(() => {
+          setShowScanModal(true);
+        }, 200);
+      }
     } catch (error) {
       console.error('Error adding status report:', error);
       throw error; // Re-throw error so modal can handle it
@@ -449,6 +548,16 @@ const ReportStatus = () => {
               <Plus className="h-4 w-4" />
               Over
             </button>
+            {isMobileDevice() && (
+              <button
+                onClick={() => setShowScanModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+                title="Scan QR Code"
+              >
+                <QrCode className="h-4 w-4" />
+                <span>Scan</span>
+              </button>
+            )}
             <button
               onClick={handleDownloadReport}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center gap-2"
@@ -612,7 +721,10 @@ const ReportStatus = () => {
       {/* Modals */}
       <StatusModal
         isOpen={isStatusModalOpen}
-        onClose={() => setIsStatusModalOpen(false)}
+        onClose={() => {
+          setIsStatusModalOpen(false);
+          setScannedItem(null); // Clear scanned item when modal closes
+        }}
         onSubmit={handleStatusSubmit}
         statusType={statusType}
         activeSkus={[...new Set(
@@ -621,6 +733,7 @@ const ReportStatus = () => {
             .map(r => r.sku)
             .filter(Boolean)
         )]}
+        scannedItem={scannedItem}
       />
 
       <BulkFollowUpModal
@@ -632,6 +745,72 @@ const ReportStatus = () => {
         selectedItems={selectedItems}
         reports={reports}
       />
+
+      {/* Scan Modal */}
+      <ScanModal
+        isOpen={showScanModal}
+        onClose={() => setShowScanModal(false)}
+        onScanSuccess={handleScanSuccess}
+        onScanError={handleScanError}
+      />
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed bottom-4 right-4 z-50 transition-all duration-300 ease-in-out">
+          <div
+            className={`max-w-md rounded-lg shadow-lg p-4 flex items-start gap-3 ${
+              toast.type === 'success'
+                ? 'bg-green-50 border border-green-200'
+                : toast.type === 'error'
+                ? 'bg-red-50 border border-red-200'
+                : toast.type === 'warning'
+                ? 'bg-yellow-50 border border-yellow-200'
+                : 'bg-blue-50 border border-blue-200'
+            }`}
+          >
+            <div className="flex-shrink-0">
+              {toast.type === 'success' && (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              )}
+              {toast.type === 'error' && (
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              )}
+              {toast.type === 'warning' && (
+                <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              )}
+            </div>
+            <div className="flex-1">
+              <p
+                className={`text-sm font-medium ${
+                  toast.type === 'success'
+                    ? 'text-green-800'
+                    : toast.type === 'error'
+                    ? 'text-red-800'
+                    : toast.type === 'warning'
+                    ? 'text-yellow-800'
+                    : 'text-blue-800'
+                }`}
+              >
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast({ show: false, message: '', type: '' })}
+              className={`flex-shrink-0 ${
+                toast.type === 'success'
+                  ? 'text-green-400 hover:text-green-600'
+                  : toast.type === 'error'
+                  ? 'text-red-400 hover:text-red-600'
+                  : toast.type === 'warning'
+                  ? 'text-yellow-400 hover:text-yellow-600'
+                  : 'text-blue-400 hover:text-blue-600'
+              }`}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
