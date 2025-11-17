@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
 import TagManagement from './TagManagement';
+import * as XLSX from 'xlsx';
 
 const AdminDashboard = ({ user, signOut }) => {
   const navigate = useNavigate();
@@ -677,43 +678,40 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
       return;
     }
 
-    // CSV Header
-    const headers = "SKU,Item Code,Item Name,Internal Product Code,Category,UOM,Tags\n";
+    // Prepare data for Excel
+    const excelData = items.map(item => ({
+      'SKU': item.sku || '',
+      'Item Code': item.item_code || '',
+      'Item Name': item.item_name || '',
+      'Internal Product Code': item.internal_product_code || '',
+      'Category': item.category || '',
+      'UOM': item.uom || '',
+      'Tags': item.tags && item.tags.length > 0 ? item.tags.join(';') : ''
+    }));
 
-    // CSV Rows
-    const rows = items.map(item => {
-      const sku = item.sku || '';
-      const itemCode = item.item_code || '';
-      const itemName = item.item_name || '';
-      const internalProductCode = item.internal_product_code || '';
-      const category = item.category || '';
-      const uom = item.uom || '';
-      const tags = item.tags && item.tags.length > 0 ? item.tags.join(';') : '';
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Items');
 
-      // Escape fields that contain commas or quotes
-      const escapeField = (field) => {
-        if (field.includes(',') || field.includes('"') || field.includes('\n')) {
-          return `"${field.replace(/"/g, '""')}"`;
-        }
-        return field;
-      };
-
-      return `${escapeField(sku)},${escapeField(itemCode)},${escapeField(itemName)},${escapeField(internalProductCode)},${escapeField(category)},${escapeField(uom)},${escapeField(tags)}`;
-    }).join('\n');
-
-    const csvContent = "data:text/csv;charset=utf-8," + headers + rows;
-    const encodedUri = encodeURI(csvContent);
-
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    // Set column widths
+    const colWidths = [
+      { wch: 15 }, // SKU
+      { wch: 15 }, // Item Code
+      { wch: 30 }, // Item Name
+      { wch: 20 }, // Internal Product Code
+      { wch: 15 }, // Category
+      { wch: 10 }, // UOM
+      { wch: 30 }  // Tags
+    ];
+    worksheet['!cols'] = colWidths;
 
     // Generate filename with current date
     const date = new Date().toISOString().split('T')[0];
-    link.setAttribute("download", `items_list_${date}.csv`);
+    const filename = `items_list_${date}.xlsx`;
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Write file
+    XLSX.writeFile(workbook, filename);
   };
 
   const handleParseCSV = async () => {
