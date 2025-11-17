@@ -264,7 +264,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
     try {
       const submitData = {
         ...formData,
-        qty: formData.qty ? parseInt(formData.qty) : null,
+        qty: formData.qty !== '' ? parseInt(formData.qty) : null,
         inventory_status: selectedStatusType // Include the selected status type
       };
 
@@ -539,7 +539,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
             </label>
             <input
               type="number"
-              min="1"
+              min="0"
               value={formData.qty}
               onChange={(e) => handleInputChange('qty', e.target.value)}
               placeholder="Enter quantity"
