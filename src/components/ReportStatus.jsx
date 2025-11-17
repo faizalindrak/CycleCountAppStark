@@ -265,6 +265,10 @@ const ReportStatus = () => {
 
   const handleStatusSubmit = async (formData) => {
     console.log('handleStatusSubmit called with:', formData);
+
+    // Track if this was a scanned item submission
+    const wasScannedItem = scannedItem !== null;
+
     try {
       const { data, error } = await supabase
         .from('report_status_raw_mat')
@@ -286,6 +290,14 @@ const ReportStatus = () => {
       fetchReports();
       setIsStatusModalOpen(false);
       setScannedItem(null); // Clear scanned item after successful submit
+
+      // If this was from a scanned item, open scan modal again for next scan
+      if (wasScannedItem) {
+        // Small delay to ensure StatusModal is fully closed first
+        setTimeout(() => {
+          setShowScanModal(true);
+        }, 200);
+      }
     } catch (error) {
       console.error('Error adding status report:', error);
       throw error; // Re-throw error so modal can handle it
