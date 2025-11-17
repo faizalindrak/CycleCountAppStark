@@ -68,7 +68,8 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
       setItemsError('');
 
       console.log('Fetching items from database...');
-      console.log('Active SKUs to filter out:', activeSkus);
+      console.log('Active SKUs to filter out (raw):', activeSkus);
+      console.log('Active SKUs count:', activeSkus.length);
 
       const { data, error } = await supabase
         .from('items')
@@ -83,7 +84,24 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
       console.log('Items fetched successfully:', data?.length || 0, 'items');
 
       // Filter out items with SKUs that are already active (open/on_progress)
-      const availableItems = (data || []).filter(item => !activeSkus.includes(item.sku));
+      // Use case-insensitive and trimmed comparison to handle variations in SKU format
+      const normalizedActiveSkus = activeSkus.map(sku => (sku || '').toString().trim().toLowerCase());
+      console.log('Normalized active SKUs:', normalizedActiveSkus);
+
+      const filteredOutItems = [];
+      const availableItems = (data || []).filter(item => {
+        const itemSku = (item.sku || '').toString().trim().toLowerCase();
+        const isActive = normalizedActiveSkus.includes(itemSku);
+        if (isActive) {
+          filteredOutItems.push({ sku: item.sku, name: item.item_name });
+        }
+        return !isActive;
+      });
+
+      console.log('Items filtered out (already active):', filteredOutItems.length);
+      if (filteredOutItems.length > 0) {
+        console.log('Filtered items:', filteredOutItems);
+      }
       console.log('Available items after filtering active SKUs:', availableItems.length, 'items');
 
       setItems(availableItems);

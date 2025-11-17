@@ -243,6 +243,7 @@ const ReportStatus = () => {
       }
 
       // Check if SKU is already active
+      // Use case-insensitive and trimmed comparison
       const activeSkus = [
         ...new Set(
           reports
@@ -252,7 +253,11 @@ const ReportStatus = () => {
         )
       ];
 
-      if (activeSkus.includes(itemData.sku)) {
+      // Normalize SKUs for comparison (case-insensitive and trimmed)
+      const normalizedActiveSkus = activeSkus.map(sku => (sku || '').toString().trim().toLowerCase());
+      const scannedSku = (itemData.sku || '').toString().trim().toLowerCase();
+
+      if (normalizedActiveSkus.includes(scannedSku)) {
         showToast(`SKU ${itemData.sku} sudah ada dalam status Open/On Progress`, 'warning');
         setShowScanModal(false);
         return;
