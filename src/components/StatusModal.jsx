@@ -19,6 +19,23 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
   const [itemsError, setItemsError] = useState('');
   const [errors, setErrors] = useState({});
   const [selectedStatusType, setSelectedStatusType] = useState(statusType);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+
+  // Load category from localStorage on mount
+  useEffect(() => {
+    const savedCategory = localStorage.getItem('selectedCategory');
+    if (savedCategory) {
+      setSelectedCategory(savedCategory);
+    }
+  }, []);
+
+  // Save category to localStorage when it changes
+  useEffect(() => {
+    if (selectedCategory) {
+      localStorage.setItem('selectedCategory', selectedCategory);
+    }
+  }, [selectedCategory]);
 
   // Fetch items when modal opens (skip if scannedItem is provided)
   useEffect(() => {
@@ -80,7 +97,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
       while (hasMore) {
         const { data, error } = await supabase
           .from('items')
-          .select('id, sku, item_code, item_name, internal_product_code')
+          .select('id, sku, item_code, item_name, internal_product_code, category')
           .order('item_name')
           .range(start, start + pageSize - 1);
 
@@ -106,6 +123,11 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
 
       console.log('Items fetched successfully:', allItems.length, 'items (total)');
 
+      // Extract unique categories from items
+      const uniqueCategories = [...new Set(allItems.map(item => item.category).filter(Boolean))].sort();
+      console.log('Unique categories found:', uniqueCategories);
+      setCategories(uniqueCategories);
+
       // Filter out items with SKUs that are already active (open/on_progress)
       // Use case-insensitive and trimmed comparison to handle variations in SKU format
       const normalizedActiveSkus = activeSkus.map(sku => (sku || '').toString().trim().toLowerCase());
@@ -128,7 +150,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
       console.log('Available items after filtering active SKUs:', availableItems.length, 'items');
 
       setItems(availableItems);
-      setFilteredItems(availableItems);
+      applyFilters(availableItems, searchTerm, selectedCategory);
     } catch (error) {
       console.error('Error fetching items:', error);
       setItemsError('Failed to load items. Please check your connection and try again.');
@@ -139,18 +161,46 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
     }
   };
 
+  // Apply both category and search filters
+  const applyFilters = (itemsList, search, category) => {
+    let filtered = itemsList;
+
+    // Filter by category if selected
+    if (category) {
+      filtered = filtered.filter(item => item.category === category);
+    }
+
+    // Filter by search term
+    if (search && search.trim() !== '') {
+      filtered = filtered.filter(item =>
+        item.item_name.toLowerCase().includes(search.toLowerCase()) ||
+        item.sku.toLowerCase().includes(search.toLowerCase()) ||
+        (item.internal_product_code && item.internal_product_code.toLowerCase().includes(search.toLowerCase()))
+      );
+    }
+
+    setFilteredItems(filtered);
+  };
+
   const handleSearch = (term) => {
     setSearchTerm(term);
-    if (term.trim() === '') {
-      setFilteredItems(items);
-    } else {
-      const filtered = items.filter(item =>
-        item.item_name.toLowerCase().includes(term.toLowerCase()) ||
-        item.sku.toLowerCase().includes(term.toLowerCase()) ||
-        (item.internal_product_code && item.internal_product_code.toLowerCase().includes(term.toLowerCase()))
-      );
-      setFilteredItems(filtered);
-    }
+    applyFilters(items, term, selectedCategory);
+  };
+
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    // Clear selected item when category changes
+    setSelectedItem(null);
+    setFormData({
+      sku: '',
+      internal_product_code: '',
+      item_name: '',
+      remarks: '',
+      qty: ''
+    });
+    // Clear search and reapply filters
+    setSearchTerm('');
+    applyFilters(items, '', category);
   };
 
   const handleItemSelect = (item) => {
@@ -214,7 +264,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
     try {
       const submitData = {
         ...formData,
-        qty: formData.qty ? parseInt(formData.qty) : null,
+        qty: formData.qty !== '' ? parseInt(formData.qty) : null,
         inventory_status: selectedStatusType // Include the selected status type
       };
 
@@ -312,6 +362,28 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Category Selection - Only show if not scanned item */}
+          {!scannedItem && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Kategori:
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                disabled={itemsLoading}
+              >
+                <option value="">Semua Kategori</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Item Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -467,7 +539,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
             </label>
             <input
               type="number"
-              min="1"
+              min="0"
               value={formData.qty}
               onChange={(e) => handleInputChange('qty', e.target.value)}
               placeholder="Enter quantity"
