@@ -672,46 +672,90 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
     document.body.removeChild(link);
   };
 
-  const downloadItems = () => {
-    if (items.length === 0) {
-      alert('No items to download');
-      return;
+  const downloadItems = async () => {
+    try {
+      // Fetch ALL items directly from database with pagination
+      let allItems = [];
+      let start = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      // Show loading indicator
+      const originalButtonText = document.querySelector('button[onclick*="downloadItems"]')?.innerText;
+
+      while (hasMore) {
+        const { data, error, count } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, category, uom, internal_product_code, tags', { count: 'exact' })
+          .order('item_name')
+          .range(start, start + pageSize - 1);
+
+        if (error) {
+          console.error('Error fetching items:', error);
+          alert('Error fetching items from database');
+          return;
+        }
+
+        if (data && data.length > 0) {
+          allItems = allItems.concat(data);
+          start += pageSize;
+
+          // Check if there are more items
+          if (count && allItems.length >= count) {
+            hasMore = false;
+          } else if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (allItems.length === 0) {
+        alert('No items to download');
+        return;
+      }
+
+      // Prepare data for Excel
+      const excelData = allItems.map(item => ({
+        'SKU': item.sku || '',
+        'Item Code': item.item_code || '',
+        'Item Name': item.item_name || '',
+        'Internal Product Code': item.internal_product_code || '',
+        'Category': item.category || '',
+        'UOM': item.uom || '',
+        'Tags': item.tags && item.tags.length > 0 ? item.tags.join(';') : ''
+      }));
+
+      // Create workbook and worksheet
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Items');
+
+      // Set column widths
+      const colWidths = [
+        { wch: 15 }, // SKU
+        { wch: 15 }, // Item Code
+        { wch: 30 }, // Item Name
+        { wch: 20 }, // Internal Product Code
+        { wch: 15 }, // Category
+        { wch: 10 }, // UOM
+        { wch: 30 }  // Tags
+      ];
+      worksheet['!cols'] = colWidths;
+
+      // Generate filename with current date
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `items_list_${date}.xlsx`;
+
+      // Write file
+      XLSX.writeFile(workbook, filename);
+
+      console.log(`Successfully downloaded ${allItems.length} items`);
+    } catch (err) {
+      console.error('Error downloading items:', err);
+      alert('Error downloading items');
     }
-
-    // Prepare data for Excel
-    const excelData = items.map(item => ({
-      'SKU': item.sku || '',
-      'Item Code': item.item_code || '',
-      'Item Name': item.item_name || '',
-      'Internal Product Code': item.internal_product_code || '',
-      'Category': item.category || '',
-      'UOM': item.uom || '',
-      'Tags': item.tags && item.tags.length > 0 ? item.tags.join(';') : ''
-    }));
-
-    // Create workbook and worksheet
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Items');
-
-    // Set column widths
-    const colWidths = [
-      { wch: 15 }, // SKU
-      { wch: 15 }, // Item Code
-      { wch: 30 }, // Item Name
-      { wch: 20 }, // Internal Product Code
-      { wch: 15 }, // Category
-      { wch: 10 }, // UOM
-      { wch: 30 }  // Tags
-    ];
-    worksheet['!cols'] = colWidths;
-
-    // Generate filename with current date
-    const date = new Date().toISOString().split('T')[0];
-    const filename = `items_list_${date}.xlsx`;
-
-    // Write file
-    XLSX.writeFile(workbook, filename);
   };
 
   const handleParseCSV = async () => {
