@@ -976,23 +976,23 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
 
             {/* Duplicate Warnings */}
             {(duplicateInfo.inCsv.length > 0 || duplicateInfo.inDb.length > 0) && (
-              <div className="p-4 border-b bg-yellow-50">
+              <div className="p-4 border-b bg-red-50">
                 <div className="flex items-start space-x-2">
-                  <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
                   <div className="flex-1">
-                    <h4 className="font-semibold text-yellow-800">Duplicate SKUs Detected</h4>
+                    <h4 className="font-semibold text-red-800">❌ Upload Blocked - Duplicate SKUs Detected</h4>
                     {duplicateInfo.inCsv.length > 0 && (
-                      <p className="text-sm text-yellow-700 mt-1">
+                      <p className="text-sm text-red-700 mt-1">
                         <strong>Duplicates within CSV:</strong> {duplicateInfo.inCsv.join(', ')}
                       </p>
                     )}
                     {duplicateInfo.inDb.length > 0 && (
-                      <p className="text-sm text-yellow-700 mt-1">
+                      <p className="text-sm text-red-700 mt-1">
                         <strong>Already exist in database:</strong> {duplicateInfo.inDb.join(', ')}
                       </p>
                     )}
-                    <p className="text-sm text-yellow-700 mt-2">
-                      ⚠️ Uploading these items may result in database errors. Please review and remove duplicates before proceeding.
+                    <p className="text-sm text-red-700 mt-2 font-medium">
+                      🚫 You must remove all duplicate SKUs from your CSV file before uploading. Please fix the duplicates and try again.
                     </p>
                   </div>
                 </div>
@@ -1092,9 +1092,13 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
             {/* Actions */}
             <div className="p-4 border-t flex justify-between items-center">
               <div className="text-sm text-gray-600">
-                {duplicateInfo.inCsv.length + duplicateInfo.inDb.length > 0 && (
-                  <span className="text-yellow-700 font-medium">
-                    ⚠️ {duplicateInfo.inCsv.length + duplicateInfo.inDb.length} duplicate(s) detected
+                {duplicateInfo.inCsv.length + duplicateInfo.inDb.length > 0 ? (
+                  <span className="text-red-700 font-medium">
+                    🚫 {duplicateInfo.inCsv.length + duplicateInfo.inDb.length} duplicate(s) detected - Upload blocked
+                  </span>
+                ) : (
+                  <span className="text-green-700 font-medium">
+                    ✅ No duplicates - Ready to upload
                   </span>
                 )}
               </div>
@@ -1108,7 +1112,7 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
                 </button>
                 <button
                   onClick={handleConfirmUpload}
-                  disabled={bulkUploading}
+                  disabled={bulkUploading || duplicateInfo.inCsv.length > 0 || duplicateInfo.inDb.length > 0}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
                   {bulkUploading ? (
