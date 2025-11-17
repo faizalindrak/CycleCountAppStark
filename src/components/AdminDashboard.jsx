@@ -893,6 +893,62 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
     setShowBulkModal(true);
   };
 
+  const downloadErrorReport = () => {
+    // Create CSV with error information
+    const headers = ['Row', 'SKU', 'Item Code', 'Item Name', 'Internal Code', 'Category', 'UOM', 'Tags', 'Error Type', 'Error Details'];
+    const csvRows = [headers.join(',')];
+
+    previewItems.forEach(item => {
+      const isDuplicateInCsv = duplicateInfo.inCsv.includes(item.sku);
+      const isDuplicateInDb = duplicateInfo.inDb.includes(item.sku);
+
+      let errorType = '';
+      let errorDetails = '';
+
+      if (isDuplicateInCsv && isDuplicateInDb) {
+        errorType = 'DUPLICATE';
+        errorDetails = 'Duplicate in CSV file AND already exists in database';
+      } else if (isDuplicateInCsv) {
+        errorType = 'DUPLICATE IN CSV';
+        errorDetails = 'This SKU appears multiple times in your CSV file';
+      } else if (isDuplicateInDb) {
+        errorType = 'ALREADY EXISTS';
+        errorDetails = 'This SKU already exists in the database';
+      } else {
+        errorType = 'OK';
+        errorDetails = 'No errors';
+      }
+
+      const row = [
+        item.rowNumber,
+        `"${item.sku}"`,
+        `"${item.item_code}"`,
+        `"${item.item_name}"`,
+        `"${item.internal_product_code || ''}"`,
+        `"${item.category}"`,
+        `"${item.uom}"`,
+        `"${item.tags.join('; ')}"`,
+        errorType,
+        `"${errorDetails}"`
+      ];
+
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', `bulk_upload_error_report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Loading is now handled by parent component
 
   return (
@@ -1078,24 +1134,34 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
             {/* Duplicate Warnings */}
             {(duplicateInfo.inCsv.length > 0 || duplicateInfo.inDb.length > 0) && (
               <div className="p-4 border-b bg-red-50">
-                <div className="flex items-start space-x-2">
-                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-red-800">❌ Upload Blocked - Duplicate SKUs Detected</h4>
-                    {duplicateInfo.inCsv.length > 0 && (
-                      <p className="text-sm text-red-700 mt-1">
-                        <strong>Duplicates within CSV:</strong> {duplicateInfo.inCsv.join(', ')}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-2 flex-1">
+                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-red-800">❌ Upload Blocked - Duplicate SKUs Detected</h4>
+                      {duplicateInfo.inCsv.length > 0 && (
+                        <p className="text-sm text-red-700 mt-1">
+                          <strong>Duplicates within CSV:</strong> {duplicateInfo.inCsv.join(', ')}
+                        </p>
+                      )}
+                      {duplicateInfo.inDb.length > 0 && (
+                        <p className="text-sm text-red-700 mt-1">
+                          <strong>Already exist in database:</strong> {duplicateInfo.inDb.join(', ')}
+                        </p>
+                      )}
+                      <p className="text-sm text-red-700 mt-2 font-medium">
+                        🚫 You must remove all duplicate SKUs from your CSV file before uploading. Please fix the duplicates and try again.
                       </p>
-                    )}
-                    {duplicateInfo.inDb.length > 0 && (
-                      <p className="text-sm text-red-700 mt-1">
-                        <strong>Already exist in database:</strong> {duplicateInfo.inDb.join(', ')}
-                      </p>
-                    )}
-                    <p className="text-sm text-red-700 mt-2 font-medium">
-                      🚫 You must remove all duplicate SKUs from your CSV file before uploading. Please fix the duplicates and try again.
-                    </p>
+                    </div>
                   </div>
+                  <button
+                    onClick={downloadErrorReport}
+                    className="ml-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center space-x-2 whitespace-nowrap"
+                    title="Download detailed error report"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Download Error Report</span>
+                  </button>
                 </div>
               </div>
             )}
