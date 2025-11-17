@@ -71,18 +71,40 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
       console.log('Active SKUs to filter out (raw):', activeSkus);
       console.log('Active SKUs count:', activeSkus.length);
 
-      const { data, error } = await supabase
-        .from('items')
-        .select('id, sku, item_code, item_name, internal_product_code')
-        .order('item_name')
-        .range(0, 9999); // Fetch up to 10,000 items (default Supabase limit is 1000)
+      // Fetch all items with pagination to bypass Supabase 1000 row limit
+      let allItems = [];
+      let start = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('Supabase error fetching items:', error);
-        throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, internal_product_code')
+          .order('item_name')
+          .range(start, start + pageSize - 1);
+
+        if (error) {
+          console.error('Supabase error fetching items:', error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          allItems = [...allItems, ...data];
+          console.log(`Fetched batch: ${data.length} items (total so far: ${allItems.length})`);
+
+          // If we got less than pageSize, we've reached the end
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            start += pageSize;
+          }
+        } else {
+          hasMore = false;
+        }
       }
 
-      console.log('Items fetched successfully:', data?.length || 0, 'items');
+      console.log('Items fetched successfully:', allItems.length, 'items (total)');
 
       // Filter out items with SKUs that are already active (open/on_progress)
       // Use case-insensitive and trimmed comparison to handle variations in SKU format
@@ -90,7 +112,7 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
       console.log('Normalized active SKUs:', normalizedActiveSkus);
 
       const filteredOutItems = [];
-      const availableItems = (data || []).filter(item => {
+      const availableItems = (allItems || []).filter(item => {
         const itemSku = (item.sku || '').toString().trim().toLowerCase();
         const isActive = normalizedActiveSkus.includes(itemSku);
         if (isActive) {
