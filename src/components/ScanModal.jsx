@@ -7,12 +7,14 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const [scanResult, setScanResult] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState(''); // For validation errors while camera is active
   const [hasPermission, setHasPermission] = useState(null);
   const [orientation, setOrientation] = useState('portrait');
 
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
   const streamRef = useRef(null);
+  const validationErrorTimeoutRef = useRef(null);
 
   // Update orientation when device orientation changes
   useEffect(() => {
@@ -24,11 +26,29 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
     return () => window.removeEventListener('orientationchange', updateOrientation);
   }, []);
 
+  // Auto-clear validation errors after 3 seconds
+  useEffect(() => {
+    if (validationError) {
+      if (validationErrorTimeoutRef.current) {
+        clearTimeout(validationErrorTimeoutRef.current);
+      }
+      validationErrorTimeoutRef.current = setTimeout(() => {
+        setValidationError('');
+      }, 3000);
+    }
+    return () => {
+      if (validationErrorTimeoutRef.current) {
+        clearTimeout(validationErrorTimeoutRef.current);
+      }
+    };
+  }, [validationError]);
+
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setScanResult('');
       setError('');
+      setValidationError('');
       setIsScanning(false);
       setHasPermission(null);
     } else {
@@ -37,6 +57,9 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
     return () => {
       stopScanning();
+      if (validationErrorTimeoutRef.current) {
+        clearTimeout(validationErrorTimeoutRef.current);
+      }
     };
   }, [isOpen]);
 
@@ -206,17 +229,23 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
   const handleScanSuccess = (result) => {
     const scannedText = result.text;
-    setScanResult(scannedText);
-    setIsScanning(false);
-    stopScanning();
+    console.log('QR Code scanned:', scannedText);
 
     // Parse the scanned result to extract internal_product_code
     const parsedCode = parseScannedCode(scannedText);
 
     if (parsedCode) {
-      onScanSuccess(parsedCode, scannedText);
+      // Clear any previous validation errors
+      setValidationError('');
+
+      // Call parent's onScanSuccess with parsed code and error callback
+      onScanSuccess(parsedCode, scannedText, (errorMessage) => {
+        // Parent can call this to show validation error without closing modal
+        setValidationError(errorMessage);
+      });
     } else {
-      setError('Invalid product code format. Expected format: [8-digit prefix]JI4ACO-GCAS17BK04');
+      // Show validation error for invalid format
+      setValidationError('Format QR code tidak valid');
       onScanError && onScanError('Invalid format');
     }
   };
@@ -362,6 +391,19 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                   Position QR code within frame
                 </div>
               </div>
+
+              {/* Validation Error Overlay */}
+              {validationError && (
+                <div className="absolute top-1/2 left-0 right-0 transform -translate-y-1/2 flex justify-center px-4">
+                  <div className="bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl max-w-sm flex items-start gap-2 animate-pulse">
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">{validationError}</p>
+                      <p className="text-xs mt-1 opacity-90">Silakan scan QR code lain</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : isScanning ? (
             <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '400px' }}>
@@ -401,6 +443,19 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
                   Position QR code within frame
                 </div>
               </div>
+
+              {/* Validation Error Overlay */}
+              {validationError && (
+                <div className="absolute top-1/2 left-0 right-0 transform -translate-y-1/2 flex justify-center px-4">
+                  <div className="bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl max-w-sm flex items-start gap-2 animate-pulse">
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">{validationError}</p>
+                      <p className="text-xs mt-1 opacity-90">Silakan scan QR code lain</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : scanResult ? (
             <div className="text-center py-8">

@@ -226,7 +226,7 @@ const ReportStatus = () => {
     setIsStatusModalOpen(true);
   };
 
-  const handleScanSuccess = async (parsedCode, originalScan) => {
+  const handleScanSuccess = async (parsedCode, originalScan, showError) => {
     try {
       // Find item from database by internal_product_code
       const { data: itemData, error } = await supabase
@@ -237,8 +237,8 @@ const ReportStatus = () => {
 
       if (error || !itemData) {
         console.log('Scanned code not found in items:', parsedCode);
-        showToast(`Item dengan kode ${parsedCode} tidak ditemukan`, 'error');
-        setShowScanModal(false);
+        // Show error in scan modal instead of closing it
+        showError(`Item dengan kode ${parsedCode} tidak ditemukan di database`);
         return;
       }
 
@@ -258,8 +258,8 @@ const ReportStatus = () => {
       const scannedSku = (itemData.sku || '').toString().trim().toLowerCase();
 
       if (normalizedActiveSkus.includes(scannedSku)) {
-        showToast(`SKU ${itemData.sku} sudah ada dalam status Open/On Progress`, 'warning');
-        setShowScanModal(false);
+        // Show error in scan modal instead of closing it
+        showError(`SKU ${itemData.sku} sudah ada dalam status Open/On Progress`);
         return;
       }
 
@@ -276,8 +276,8 @@ const ReportStatus = () => {
       setIsStatusModalOpen(true);
     } catch (error) {
       console.error('Error fetching scanned item:', error);
-      showToast('Terjadi kesalahan saat memproses scan', 'error');
-      setShowScanModal(false);
+      // Show error in scan modal instead of closing it
+      showError('Terjadi kesalahan saat memproses scan');
     }
   };
 
