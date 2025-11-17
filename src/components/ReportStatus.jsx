@@ -25,19 +25,30 @@ const ReportStatus = () => {
   const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
   const [scannedItem, setScannedItem] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', type: '' }); // type: 'success' | 'error' | 'warning'
 
   // Refs to store subscriptions
   const reportStatusSubscription = useRef(null);
   const profilesSubscription = useRef(null);
   const itemsSubscription = useRef(null);
 
+  // Auto-hide toast after 4 seconds
+  useEffect(() => {
+    if (toast.show) {
+      const timer = setTimeout(() => {
+        setToast({ show: false, message: '', type: '' });
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.show]);
+
   // Fetch reports on component mount and when filter changes
   useEffect(() => {
     fetchReports();
-    
+
     // Set up real-time subscriptions
     setupRealtimeSubscriptions();
-    
+
     // Cleanup function to unsubscribe when component unmounts
     return () => {
       cleanupSubscriptions();
@@ -205,6 +216,10 @@ const ReportStatus = () => {
     }
   };
 
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+  };
+
   const handleAddStatus = (type) => {
     setStatusType(type);
     setScannedItem(null); // Clear scanned item when manually adding
@@ -222,7 +237,7 @@ const ReportStatus = () => {
 
       if (error || !itemData) {
         console.log('Scanned code not found in items:', parsedCode);
-        alert(`Item dengan kode ${parsedCode} tidak ditemukan. Silakan input manual.`);
+        showToast(`Item dengan kode ${parsedCode} tidak ditemukan`, 'error');
         setShowScanModal(false);
         return;
       }
@@ -238,7 +253,7 @@ const ReportStatus = () => {
       ];
 
       if (activeSkus.includes(itemData.sku)) {
-        alert(`SKU ${itemData.sku} sudah ada dalam status Open atau On Progress. Tidak bisa ditambahkan lagi.`);
+        showToast(`SKU ${itemData.sku} sudah ada dalam status Open/On Progress`, 'warning');
         setShowScanModal(false);
         return;
       }
@@ -247,13 +262,16 @@ const ReportStatus = () => {
       setScannedItem(itemData);
       setShowScanModal(false);
 
+      // Show success toast for scanned item
+      showToast(`Item berhasil di-scan: ${itemData.item_name}`, 'success');
+
       // Open status modal - user will select kritis/over
       // For now, we'll default to kritis, but user can change in modal
       setStatusType('kritis');
       setIsStatusModalOpen(true);
     } catch (error) {
       console.error('Error fetching scanned item:', error);
-      alert('Terjadi kesalahan saat memproses scan. Silakan coba lagi.');
+      showToast('Terjadi kesalahan saat memproses scan', 'error');
       setShowScanModal(false);
     }
   };
@@ -268,6 +286,8 @@ const ReportStatus = () => {
 
     // Track if this was a scanned item submission
     const wasScannedItem = scannedItem !== null;
+    const itemName = formData.item_name;
+    const statusType = formData.inventory_status;
 
     try {
       const { data, error } = await supabase
@@ -282,10 +302,18 @@ const ReportStatus = () => {
 
       if (error) {
         console.error('Supabase error:', error);
+        showToast(`Gagal menyimpan report: ${error.message}`, 'error');
         throw error;
       }
 
       console.log('Insert successful:', data);
+
+      // Show success toast
+      showToast(
+        `Report ${statusType?.toUpperCase()} berhasil ditambahkan: ${itemName}`,
+        'success'
+      );
+
       // Refresh reports
       fetchReports();
       setIsStatusModalOpen(false);
@@ -725,6 +753,64 @@ const ReportStatus = () => {
         onScanSuccess={handleScanSuccess}
         onScanError={handleScanError}
       />
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed bottom-4 right-4 z-50 transition-all duration-300 ease-in-out">
+          <div
+            className={`max-w-md rounded-lg shadow-lg p-4 flex items-start gap-3 ${
+              toast.type === 'success'
+                ? 'bg-green-50 border border-green-200'
+                : toast.type === 'error'
+                ? 'bg-red-50 border border-red-200'
+                : toast.type === 'warning'
+                ? 'bg-yellow-50 border border-yellow-200'
+                : 'bg-blue-50 border border-blue-200'
+            }`}
+          >
+            <div className="flex-shrink-0">
+              {toast.type === 'success' && (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              )}
+              {toast.type === 'error' && (
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              )}
+              {toast.type === 'warning' && (
+                <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              )}
+            </div>
+            <div className="flex-1">
+              <p
+                className={`text-sm font-medium ${
+                  toast.type === 'success'
+                    ? 'text-green-800'
+                    : toast.type === 'error'
+                    ? 'text-red-800'
+                    : toast.type === 'warning'
+                    ? 'text-yellow-800'
+                    : 'text-blue-800'
+                }`}
+              >
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast({ show: false, message: '', type: '' })}
+              className={`flex-shrink-0 ${
+                toast.type === 'success'
+                  ? 'text-green-400 hover:text-green-600'
+                  : toast.type === 'error'
+                  ? 'text-red-400 hover:text-red-600'
+                  : toast.type === 'warning'
+                  ? 'text-yellow-400 hover:text-yellow-600'
+                  : 'text-blue-400 hover:text-blue-600'
+              }`}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
