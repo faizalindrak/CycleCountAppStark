@@ -267,9 +267,6 @@ const ReportStatus = () => {
       setScannedItem(itemData);
       setShowScanModal(false);
 
-      // Show success toast for scanned item
-      showToast(`Item berhasil di-scan: ${itemData.item_name}`, 'success');
-
       // Open status modal - user will select kritis/over
       // For now, we'll default to kritis, but user can change in modal
       setStatusType('kritis');
