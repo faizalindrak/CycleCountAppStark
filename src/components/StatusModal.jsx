@@ -68,22 +68,63 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [], s
       setItemsError('');
 
       console.log('Fetching items from database...');
-      console.log('Active SKUs to filter out:', activeSkus);
+      console.log('Active SKUs to filter out (raw):', activeSkus);
+      console.log('Active SKUs count:', activeSkus.length);
 
-      const { data, error } = await supabase
-        .from('items')
-        .select('id, sku, item_code, item_name, internal_product_code')
-        .order('item_name');
+      // Fetch all items with pagination to bypass Supabase 1000 row limit
+      let allItems = [];
+      let start = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('Supabase error fetching items:', error);
-        throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, internal_product_code')
+          .order('item_name')
+          .range(start, start + pageSize - 1);
+
+        if (error) {
+          console.error('Supabase error fetching items:', error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          allItems = [...allItems, ...data];
+          console.log(`Fetched batch: ${data.length} items (total so far: ${allItems.length})`);
+
+          // If we got less than pageSize, we've reached the end
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            start += pageSize;
+          }
+        } else {
+          hasMore = false;
+        }
       }
 
-      console.log('Items fetched successfully:', data?.length || 0, 'items');
+      console.log('Items fetched successfully:', allItems.length, 'items (total)');
 
       // Filter out items with SKUs that are already active (open/on_progress)
-      const availableItems = (data || []).filter(item => !activeSkus.includes(item.sku));
+      // Use case-insensitive and trimmed comparison to handle variations in SKU format
+      const normalizedActiveSkus = activeSkus.map(sku => (sku || '').toString().trim().toLowerCase());
+      console.log('Normalized active SKUs:', normalizedActiveSkus);
+
+      const filteredOutItems = [];
+      const availableItems = (allItems || []).filter(item => {
+        const itemSku = (item.sku || '').toString().trim().toLowerCase();
+        const isActive = normalizedActiveSkus.includes(itemSku);
+        if (isActive) {
+          filteredOutItems.push({ sku: item.sku, name: item.item_name });
+        }
+        return !isActive;
+      });
+
+      console.log('Items filtered out (already active):', filteredOutItems.length);
+      if (filteredOutItems.length > 0) {
+        console.log('Filtered items:', filteredOutItems);
+      }
       console.log('Available items after filtering active SKUs:', availableItems.length, 'items');
 
       setItems(availableItems);
