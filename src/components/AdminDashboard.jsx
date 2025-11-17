@@ -615,6 +615,7 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
 
 // Items Manager Component
 const ItemsManager = React.memo(({ items, setItems, categories, setCategories, onDataChange }) => {
+  const { user } = useAuth();
   const [showEditor, setShowEditor] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [bulkFile, setBulkFile] = useState(null);
@@ -720,7 +721,8 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
           internal_product_code: internalProductCode || null,
           category,
           uom,
-          tags: tags ? tags.split(';').map(tag => tag.trim()).filter(tag => tag) : []
+          tags: tags ? tags.split(';').map(tag => tag.trim()).filter(tag => tag) : [],
+          created_by: user.id
         });
       }
 
