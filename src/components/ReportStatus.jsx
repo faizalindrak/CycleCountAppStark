@@ -119,14 +119,28 @@ const ReportStatus = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      let query = supabase
+
+      // Fetch reports for the selected date
+      const { data: dateReports, error: dateError } = await supabase
         .from('report_status_raw_mat')
         .select('*')
         .eq('date_input', filterDate)
         .order('created_at', { ascending: false });
 
-      const { data, error } = await query;
-      if (error) throw error;
+      if (dateError) throw dateError;
+
+      // Fetch all open and on_progress reports (regardless of date)
+      const { data: activeReports, error: activeError } = await supabase
+        .from('report_status_raw_mat')
+        .select('*')
+        .in('follow_up_status', ['open', 'on_progress'])
+        .neq('date_input', filterDate) // Exclude the ones already in dateReports
+        .order('created_at', { ascending: false });
+
+      if (activeError) throw activeError;
+
+      // Combine both datasets
+      const data = [...(dateReports || []), ...(activeReports || [])];
 
       // Get unique SKUs and internal product codes from reports
       const skuCodes = [...new Set((data || []).map(r => r.sku).filter(Boolean))];
@@ -288,6 +302,12 @@ const ReportStatus = () => {
 
   const handleDownloadReport = async () => {
     try {
+      // Count reports by date and status
+      const dateFilteredCount = reports.filter(r => r.date_input === filterDate).length;
+      const activeFromOtherDatesCount = reports.filter(
+        r => r.date_input !== filterDate && (r.follow_up_status === 'open' || r.follow_up_status === 'on_progress')
+      ).length;
+
       const schema = [
         { column: 'Date', type: String, value: r => r.date_input, width: 12 },
         { column: 'SKU', type: String, value: r => r.sku, width: 8 },
@@ -304,11 +324,30 @@ const ReportStatus = () => {
         { column: 'Updated At', type: String, value: r => new Date(r.updated_at).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
       ];
 
+      // Generate filename that reflects the data content
+      const fileName = activeFromOtherDatesCount > 0
+        ? `report_status_${filterDate}_plus_active.xlsx`
+        : `report_status_${filterDate}.xlsx`;
+
+      const sheetName = activeFromOtherDatesCount > 0
+        ? `${filterDate}+Active`
+        : `Reports_${filterDate}`;
+
       await writeXlsxFile(reports || [], {
         schema,
-        fileName: `report_status_${filterDate}.xlsx`,
-        sheet: `Reports_${filterDate}`,
+        fileName: fileName,
+        sheet: sheetName,
       });
+
+      // Show success message with details
+      const message = activeFromOtherDatesCount > 0
+        ? `Download berhasil!\n\n` +
+          `- Report tanggal ${filterDate}: ${dateFilteredCount} items\n` +
+          `- Report aktif (open/on progress) dari tanggal lain: ${activeFromOtherDatesCount} items\n` +
+          `- Total: ${reports.length} items`
+        : `Download berhasil! Total: ${reports.length} items`;
+
+      alert(message);
     } catch (err) {
       console.error('Error generating Excel:', err);
       alert('Failed to download Excel report.');
@@ -576,6 +615,12 @@ const ReportStatus = () => {
         onClose={() => setIsStatusModalOpen(false)}
         onSubmit={handleStatusSubmit}
         statusType={statusType}
+        activeSkus={[...new Set(
+          reports
+            .filter(r => r.follow_up_status === 'open' || r.follow_up_status === 'on_progress')
+            .map(r => r.sku)
+            .filter(Boolean)
+        )]}
       />
 
       <BulkFollowUpModal

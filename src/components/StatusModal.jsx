@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, AlertTriangle, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const StatusModal = ({ isOpen, onClose, onSubmit, statusType }) => {
+const StatusModal = ({ isOpen, onClose, onSubmit, statusType, activeSkus = [] }) => {
   const [formData, setFormData] = useState({
     sku: '',
     internal_product_code: '',
@@ -52,6 +52,8 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType }) => {
       setItemsError('');
 
       console.log('Fetching items from database...');
+      console.log('Active SKUs to filter out:', activeSkus);
+
       const { data, error } = await supabase
         .from('items')
         .select('id, sku, item_code, item_name, internal_product_code')
@@ -63,8 +65,13 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType }) => {
       }
 
       console.log('Items fetched successfully:', data?.length || 0, 'items');
-      setItems(data || []);
-      setFilteredItems(data || []);
+
+      // Filter out items with SKUs that are already active (open/on_progress)
+      const availableItems = (data || []).filter(item => !activeSkus.includes(item.sku));
+      console.log('Available items after filtering active SKUs:', availableItems.length, 'items');
+
+      setItems(availableItems);
+      setFilteredItems(availableItems);
     } catch (error) {
       console.error('Error fetching items:', error);
       setItemsError('Failed to load items. Please check your connection and try again.');
@@ -243,6 +250,15 @@ const StatusModal = ({ isOpen, onClose, onSubmit, statusType }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Item <span className="text-red-500">*</span>
             </label>
+
+            {/* Info about filtered active SKUs */}
+            {activeSkus.length > 0 && (
+              <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-xs text-yellow-800">
+                  <strong>Note:</strong> SKUs yang sedang dalam status Open atau On Progress tidak ditampilkan di daftar ({activeSkus.length} SKU aktif)
+                </p>
+              </div>
+            )}
 
             {itemsLoading ? (
               <div className="flex items-center justify-center p-4 border border-gray-300 rounded-md">
