@@ -719,15 +719,16 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
           throw new Error(`Row ${i + 2}: Category "${category}" does not exist`);
         }
 
-        // Check for duplicate SKU within CSV
-        if (skusInCsv.has(sku)) {
+        // Check for duplicate SKU within CSV (case-insensitive, trimmed)
+        const skuNormalized = sku.trim().toLowerCase();
+        if (skusInCsv.has(skuNormalized)) {
           duplicatesInCsv.push(sku);
         } else {
-          skusInCsv.add(sku);
+          skusInCsv.add(skuNormalized);
         }
 
         itemsToInsert.push({
-          sku,
+          sku: sku.trim(),
           item_code: itemCode,
           item_name: itemName,
           internal_product_code: internalProductCode || null,
@@ -743,10 +744,17 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
         throw new Error('No valid items to upload');
       }
 
-      // Check for existing SKUs in database
-      const existingSkus = items.map(item => item.sku);
+      // Fetch fresh items data from database to check for existing SKUs
+      const { data: freshItems, error: fetchError } = await supabase
+        .from('items')
+        .select('sku');
+
+      if (fetchError) throw fetchError;
+
+      // Check for existing SKUs in database (case-insensitive comparison)
+      const existingSkusNormalized = freshItems.map(item => item.sku.trim().toLowerCase());
       const duplicatesInDb = itemsToInsert.filter(item =>
-        existingSkus.includes(item.sku)
+        existingSkusNormalized.includes(item.sku.toLowerCase())
       ).map(item => item.sku);
 
       setPreviewItems(itemsToInsert);
