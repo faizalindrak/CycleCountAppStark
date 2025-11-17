@@ -125,9 +125,10 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
       }
 
       // Configure decoding hints for QR code optimization
-      // Removed TRY_HARDER to improve scanning speed
+      // TRY_HARDER enabled for warehouse conditions (damaged/dirty QR codes)
       const hints = new Map();
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
 
       // Initialize ZXing BrowserQRCodeReader with hints for faster QR detection
       const codeReader = new BrowserQRCodeReader(hints);
