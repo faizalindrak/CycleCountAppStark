@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid } from 'lucide-react';
+import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
 import BulkFollowUpModal from './BulkFollowUpModal';
 import KanbanBoard from './KanbanBoard';
+import ScanModal from './ScanModal';
 import { supabase } from '../lib/supabase';
+import { isMobileDevice } from '../lib/deviceDetection';
 import writeXlsxFile from 'write-excel-file';
 
 const ReportStatus = () => {
@@ -21,7 +23,9 @@ const ReportStatus = () => {
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
-  
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scannedItem, setScannedItem] = useState(null);
+
   // Refs to store subscriptions
   const reportStatusSubscription = useRef(null);
   const profilesSubscription = useRef(null);
@@ -203,7 +207,60 @@ const ReportStatus = () => {
 
   const handleAddStatus = (type) => {
     setStatusType(type);
+    setScannedItem(null); // Clear scanned item when manually adding
     setIsStatusModalOpen(true);
+  };
+
+  const handleScanSuccess = async (parsedCode, originalScan) => {
+    try {
+      // Find item from database by internal_product_code
+      const { data: itemData, error } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code')
+        .eq('internal_product_code', parsedCode)
+        .single();
+
+      if (error || !itemData) {
+        console.log('Scanned code not found in items:', parsedCode);
+        alert(`Item dengan kode ${parsedCode} tidak ditemukan. Silakan input manual.`);
+        setShowScanModal(false);
+        return;
+      }
+
+      // Check if SKU is already active
+      const activeSkus = [
+        ...new Set(
+          reports
+            .filter(r => r.follow_up_status === 'open' || r.follow_up_status === 'on_progress')
+            .map(r => r.sku)
+            .filter(Boolean)
+        )
+      ];
+
+      if (activeSkus.includes(itemData.sku)) {
+        alert(`SKU ${itemData.sku} sudah ada dalam status Open atau On Progress. Tidak bisa ditambahkan lagi.`);
+        setShowScanModal(false);
+        return;
+      }
+
+      // Set scanned item and close scan modal
+      setScannedItem(itemData);
+      setShowScanModal(false);
+
+      // Open status modal - user will select kritis/over
+      // For now, we'll default to kritis, but user can change in modal
+      setStatusType('kritis');
+      setIsStatusModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching scanned item:', error);
+      alert('Terjadi kesalahan saat memproses scan. Silakan coba lagi.');
+      setShowScanModal(false);
+    }
+  };
+
+  const handleScanError = (error) => {
+    console.error('Scan error:', error);
+    // Error is already handled in ScanModal component
   };
 
   const handleStatusSubmit = async (formData) => {
@@ -214,7 +271,8 @@ const ReportStatus = () => {
         .insert([{
           ...formData,
           user_report: user.id,
-          inventory_status: statusType
+          date_input: filterDate // Use the selected filter date
+          // inventory_status is already included in formData from StatusModal
         }])
         .select();
 
@@ -227,6 +285,7 @@ const ReportStatus = () => {
       // Refresh reports
       fetchReports();
       setIsStatusModalOpen(false);
+      setScannedItem(null); // Clear scanned item after successful submit
     } catch (error) {
       console.error('Error adding status report:', error);
       throw error; // Re-throw error so modal can handle it
@@ -449,6 +508,16 @@ const ReportStatus = () => {
               <Plus className="h-4 w-4" />
               Over
             </button>
+            {isMobileDevice() && (
+              <button
+                onClick={() => setShowScanModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+                title="Scan QR Code"
+              >
+                <QrCode className="h-4 w-4" />
+                <span>Scan</span>
+              </button>
+            )}
             <button
               onClick={handleDownloadReport}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center gap-2"
@@ -612,7 +681,10 @@ const ReportStatus = () => {
       {/* Modals */}
       <StatusModal
         isOpen={isStatusModalOpen}
-        onClose={() => setIsStatusModalOpen(false)}
+        onClose={() => {
+          setIsStatusModalOpen(false);
+          setScannedItem(null); // Clear scanned item when modal closes
+        }}
         onSubmit={handleStatusSubmit}
         statusType={statusType}
         activeSkus={[...new Set(
@@ -621,6 +693,7 @@ const ReportStatus = () => {
             .map(r => r.sku)
             .filter(Boolean)
         )]}
+        scannedItem={scannedItem}
       />
 
       <BulkFollowUpModal
@@ -631,6 +704,14 @@ const ReportStatus = () => {
         onSubmit={handleBulkStatusUpdate}
         selectedItems={selectedItems}
         reports={reports}
+      />
+
+      {/* Scan Modal */}
+      <ScanModal
+        isOpen={showScanModal}
+        onClose={() => setShowScanModal(false)}
+        onScanSuccess={handleScanSuccess}
+        onScanError={handleScanError}
       />
     </div>
   );
