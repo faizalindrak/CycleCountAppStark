@@ -96,7 +96,7 @@ const AdminDashboard = ({ user, signOut }) => {
       // Fetch all data in parallel for better performance
       const [sessionsRes, itemsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
         supabase.from('sessions').select(`*, session_users (user_id)`).order('created_date', { ascending: false }),
-        supabase.from('items').select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at').order('item_name'),
+        supabase.from('items').select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at').order('item_name').range(0, 9999),
         supabase.from('categories').select('*').order('name'),
         supabase.from('location_usage').select('*').order('name'),
         supabase.from('profiles').select('*').order('name')
