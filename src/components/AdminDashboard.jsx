@@ -622,6 +622,9 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [previewItems, setPreviewItems] = useState([]);
+  const [showPreview, setShowPreview] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState({ inCsv: [], inDb: [] });
 
   // Data is now passed as props from parent component
 
@@ -669,7 +672,7 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
   };
 
 
-  const handleBulkUpload = async () => {
+  const handleParseCSV = async () => {
     if (!bulkFile) {
       setBulkError('Please select a CSV file');
       return;
@@ -693,6 +696,8 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
 
       const dataRows = rows.slice(1);
       const itemsToInsert = [];
+      const skusInCsv = new Set();
+      const duplicatesInCsv = [];
 
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i];
@@ -714,6 +719,13 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
           throw new Error(`Row ${i + 2}: Category "${category}" does not exist`);
         }
 
+        // Check for duplicate SKU within CSV
+        if (skusInCsv.has(sku)) {
+          duplicatesInCsv.push(sku);
+        } else {
+          skusInCsv.add(sku);
+        }
+
         itemsToInsert.push({
           sku,
           item_code: itemCode,
@@ -722,13 +734,42 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
           category,
           uom,
           tags: tags ? tags.split(';').map(tag => tag.trim()).filter(tag => tag) : [],
-          created_by: user.id
+          created_by: user.id,
+          rowNumber: i + 2 // For display purposes
         });
       }
 
       if (itemsToInsert.length === 0) {
         throw new Error('No valid items to upload');
       }
+
+      // Check for existing SKUs in database
+      const existingSkus = items.map(item => item.sku);
+      const duplicatesInDb = itemsToInsert.filter(item =>
+        existingSkus.includes(item.sku)
+      ).map(item => item.sku);
+
+      setPreviewItems(itemsToInsert);
+      setDuplicateInfo({
+        inCsv: [...new Set(duplicatesInCsv)],
+        inDb: [...new Set(duplicatesInDb)]
+      });
+      setShowPreview(true);
+      setShowBulkModal(false);
+    } catch (err) {
+      setBulkError(err.message);
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const handleConfirmUpload = async () => {
+    setBulkUploading(true);
+    setBulkError('');
+
+    try {
+      // Remove rowNumber before inserting
+      const itemsToInsert = previewItems.map(({ rowNumber, ...item }) => item);
 
       const { error } = await supabase
         .from('items')
@@ -737,8 +778,11 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
       if (error) throw error;
 
       setBulkFile(null);
+      setShowPreview(false);
       setShowBulkModal(false);
       setBulkError('');
+      setPreviewItems([]);
+      setDuplicateInfo({ inCsv: [], inDb: [] });
       await onDataChange();
       alert(`Successfully uploaded ${itemsToInsert.length} items`);
     } catch (err) {
@@ -746,6 +790,13 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
     } finally {
       setBulkUploading(false);
     }
+  };
+
+  const handleCancelPreview = () => {
+    setShowPreview(false);
+    setPreviewItems([]);
+    setDuplicateInfo({ inCsv: [], inDb: [] });
+    setShowBulkModal(true);
   };
 
   // Loading is now handled by parent component
@@ -891,16 +942,186 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
                   Cancel
                 </button>
                 <button
-                  onClick={handleBulkUpload}
+                  onClick={handleParseCSV}
                   disabled={!bulkFile || bulkUploading}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
                   {bulkUploading ? (
                     <div className="spinner w-4 h-4"></div>
                   ) : (
-                    <Plus className="h-4 w-4" />
+                    <Search className="h-4 w-4" />
                   )}
-                  <span>{bulkUploading ? 'Uploading...' : 'Upload'}</span>
+                  <span>{bulkUploading ? 'Processing...' : 'Preview'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-6xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold">Preview Bulk Upload</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {previewItems.length} item(s) ready to upload
+                </p>
+              </div>
+              <button onClick={handleCancelPreview} className="text-gray-500 hover:text-gray-700">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Duplicate Warnings */}
+            {(duplicateInfo.inCsv.length > 0 || duplicateInfo.inDb.length > 0) && (
+              <div className="p-4 border-b bg-yellow-50">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-yellow-800">Duplicate SKUs Detected</h4>
+                    {duplicateInfo.inCsv.length > 0 && (
+                      <p className="text-sm text-yellow-700 mt-1">
+                        <strong>Duplicates within CSV:</strong> {duplicateInfo.inCsv.join(', ')}
+                      </p>
+                    )}
+                    {duplicateInfo.inDb.length > 0 && (
+                      <p className="text-sm text-yellow-700 mt-1">
+                        <strong>Already exist in database:</strong> {duplicateInfo.inDb.join(', ')}
+                      </p>
+                    )}
+                    <p className="text-sm text-yellow-700 mt-2">
+                      ⚠️ Uploading these items may result in database errors. Please review and remove duplicates before proceeding.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Preview Table */}
+            <div className="flex-1 overflow-auto p-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Row
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        SKU
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Item Code
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Item Name
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Internal Code
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Category
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        UOM
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tags
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {previewItems.map((item, index) => {
+                      const isDuplicateInCsv = duplicateInfo.inCsv.includes(item.sku);
+                      const isDuplicateInDb = duplicateInfo.inDb.includes(item.sku);
+                      const isDuplicate = isDuplicateInCsv || isDuplicateInDb;
+
+                      return (
+                        <tr key={index} className={isDuplicate ? 'bg-yellow-50' : ''}>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                            {item.rowNumber}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            <div className="flex items-center space-x-1">
+                              <span className={isDuplicate ? 'text-red-600 font-semibold' : 'text-gray-900'}>
+                                {item.sku}
+                              </span>
+                              {isDuplicate && (
+                                <AlertCircle className="h-4 w-4 text-red-600" title={
+                                  isDuplicateInCsv ? 'Duplicate in CSV' : 'Already exists in database'
+                                } />
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {item.item_code}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {item.item_name}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                            {item.internal_product_code || '-'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {item.category}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {item.uom}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            {item.tags.length > 0 ? item.tags.join(', ') : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Error Display */}
+            {bulkError && (
+              <div className="px-4 pb-4">
+                <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                  {bulkError}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="p-4 border-t flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                {duplicateInfo.inCsv.length + duplicateInfo.inDb.length > 0 && (
+                  <span className="text-yellow-700 font-medium">
+                    ⚠️ {duplicateInfo.inCsv.length + duplicateInfo.inDb.length} duplicate(s) detected
+                  </span>
+                )}
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleCancelPreview}
+                  className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+                  disabled={bulkUploading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmUpload}
+                  disabled={bulkUploading}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {bulkUploading ? (
+                    <>
+                      <div className="spinner w-4 h-4"></div>
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      <span>Confirm & Upload</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
