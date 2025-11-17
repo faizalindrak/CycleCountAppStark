@@ -671,6 +671,50 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
     document.body.removeChild(link);
   };
 
+  const downloadItems = () => {
+    if (items.length === 0) {
+      alert('No items to download');
+      return;
+    }
+
+    // CSV Header
+    const headers = "SKU,Item Code,Item Name,Internal Product Code,Category,UOM,Tags\n";
+
+    // CSV Rows
+    const rows = items.map(item => {
+      const sku = item.sku || '';
+      const itemCode = item.item_code || '';
+      const itemName = item.item_name || '';
+      const internalProductCode = item.internal_product_code || '';
+      const category = item.category || '';
+      const uom = item.uom || '';
+      const tags = item.tags && item.tags.length > 0 ? item.tags.join(';') : '';
+
+      // Escape fields that contain commas or quotes
+      const escapeField = (field) => {
+        if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+          return `"${field.replace(/"/g, '""')}"`;
+        }
+        return field;
+      };
+
+      return `${escapeField(sku)},${escapeField(itemCode)},${escapeField(itemName)},${escapeField(internalProductCode)},${escapeField(category)},${escapeField(uom)},${escapeField(tags)}`;
+    }).join('\n');
+
+    const csvContent = "data:text/csv;charset=utf-8," + headers + rows;
+    const encodedUri = encodeURI(csvContent);
+
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+
+    // Generate filename with current date
+    const date = new Date().toISOString().split('T')[0];
+    link.setAttribute("download", `items_list_${date}.csv`);
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleParseCSV = async () => {
     if (!bulkFile) {
@@ -806,6 +850,13 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-semibold">Manage Items</h3>
         <div className="flex space-x-2">
+          <button
+            onClick={downloadItems}
+            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center space-x-2"
+          >
+            <Download className="h-4 w-4" />
+            <span>Download Items</span>
+          </button>
           <button
             onClick={handleCreateItem}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
