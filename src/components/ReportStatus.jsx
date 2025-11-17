@@ -302,6 +302,12 @@ const ReportStatus = () => {
 
   const handleDownloadReport = async () => {
     try {
+      // Count reports by date and status
+      const dateFilteredCount = reports.filter(r => r.date_input === filterDate).length;
+      const activeFromOtherDatesCount = reports.filter(
+        r => r.date_input !== filterDate && (r.follow_up_status === 'open' || r.follow_up_status === 'on_progress')
+      ).length;
+
       const schema = [
         { column: 'Date', type: String, value: r => r.date_input, width: 12 },
         { column: 'SKU', type: String, value: r => r.sku, width: 8 },
@@ -318,11 +324,30 @@ const ReportStatus = () => {
         { column: 'Updated At', type: String, value: r => new Date(r.updated_at).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
       ];
 
+      // Generate filename that reflects the data content
+      const fileName = activeFromOtherDatesCount > 0
+        ? `report_status_${filterDate}_plus_active.xlsx`
+        : `report_status_${filterDate}.xlsx`;
+
+      const sheetName = activeFromOtherDatesCount > 0
+        ? `${filterDate}+Active`
+        : `Reports_${filterDate}`;
+
       await writeXlsxFile(reports || [], {
         schema,
-        fileName: `report_status_${filterDate}.xlsx`,
-        sheet: `Reports_${filterDate}`,
+        fileName: fileName,
+        sheet: sheetName,
       });
+
+      // Show success message with details
+      const message = activeFromOtherDatesCount > 0
+        ? `Download berhasil!\n\n` +
+          `- Report tanggal ${filterDate}: ${dateFilteredCount} items\n` +
+          `- Report aktif (open/on progress) dari tanggal lain: ${activeFromOtherDatesCount} items\n` +
+          `- Total: ${reports.length} items`
+        : `Download berhasil! Total: ${reports.length} items`;
+
+      alert(message);
     } catch (err) {
       console.error('Error generating Excel:', err);
       alert('Failed to download Excel report.');
