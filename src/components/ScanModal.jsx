@@ -15,6 +15,8 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
   const codeReaderRef = useRef(null);
   const streamRef = useRef(null);
   const validationErrorTimeoutRef = useRef(null);
+  const lastScanTimeRef = useRef(0);
+  const scanDebounceTimeRef = useRef(null);
 
   // Update orientation when device orientation changes
   useEffect(() => {
@@ -60,6 +62,9 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
       if (validationErrorTimeoutRef.current) {
         clearTimeout(validationErrorTimeoutRef.current);
       }
+      if (scanDebounceTimeRef.current) {
+        clearTimeout(scanDebounceTimeRef.current);
+      }
     };
   }, [isOpen]);
 
@@ -101,10 +106,8 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
         const permissionStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: isMobileDevice() ? { ideal: 'environment' } : 'user',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            focusMode: { ideal: 'continuous' },
-            aspectRatio: { ideal: 16/9 }
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           }
         });
         // Immediately stop the stream as we'll use ZXing's method
@@ -122,9 +125,9 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
       }
 
       // Configure decoding hints for QR code optimization
+      // Removed TRY_HARDER to improve scanning speed
       const hints = new Map();
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
 
       // Initialize ZXing BrowserQRCodeReader with hints for faster QR detection
       const codeReader = new BrowserQRCodeReader(hints);
@@ -154,15 +157,14 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
       setHasPermission(true);
 
-      // Enhanced video constraints for better QR detection
+      // Optimized video constraints for faster QR detection
+      // Lower resolution = faster processing
       const constraints = {
         video: {
           deviceId: selectedDeviceId,
           facingMode: isMobileDevice() ? { ideal: 'environment' } : 'user',
-          width: { ideal: 1920, min: 640 },
-          height: { ideal: 1080, min: 480 },
-          focusMode: { ideal: 'continuous' },
-          aspectRatio: { ideal: 16/9 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
       };
 
@@ -229,25 +231,41 @@ const ScanModal = ({ isOpen, onClose, onScanSuccess, onScanError }) => {
 
   const handleScanSuccess = (result) => {
     const scannedText = result.text;
+    const currentTime = Date.now();
+
+    // Debounce: Prevent processing same scan within 800ms
+    if (currentTime - lastScanTimeRef.current < 800) {
+      return;
+    }
+
+    lastScanTimeRef.current = currentTime;
     console.log('QR Code scanned:', scannedText);
 
-    // Parse the scanned result to extract internal_product_code
-    const parsedCode = parseScannedCode(scannedText);
-
-    if (parsedCode) {
-      // Clear any previous validation errors
-      setValidationError('');
-
-      // Call parent's onScanSuccess with parsed code and error callback
-      onScanSuccess(parsedCode, scannedText, (errorMessage) => {
-        // Parent can call this to show validation error without closing modal
-        setValidationError(errorMessage);
-      });
-    } else {
-      // Show validation error for invalid format
-      setValidationError('Format QR code tidak valid');
-      onScanError && onScanError('Invalid format');
+    // Clear any pending debounce timeout
+    if (scanDebounceTimeRef.current) {
+      clearTimeout(scanDebounceTimeRef.current);
     }
+
+    // Debounce the actual processing
+    scanDebounceTimeRef.current = setTimeout(() => {
+      // Parse the scanned result to extract internal_product_code
+      const parsedCode = parseScannedCode(scannedText);
+
+      if (parsedCode) {
+        // Clear any previous validation errors
+        setValidationError('');
+
+        // Call parent's onScanSuccess with parsed code and error callback
+        onScanSuccess(parsedCode, scannedText, (errorMessage) => {
+          // Parent can call this to show validation error without closing modal
+          setValidationError(errorMessage);
+        });
+      } else {
+        // Show validation error for invalid format
+        setValidationError('Format QR code tidak valid');
+        onScanError && onScanError('Invalid format');
+      }
+    }, 100);
   };
 
   const parseScannedCode = (scannedText) => {
