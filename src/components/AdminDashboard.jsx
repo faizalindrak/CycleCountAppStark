@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
 import TagManagement from './TagManagement';
+import * as XLSX from 'xlsx';
 
 const AdminDashboard = ({ user, signOut }) => {
   const navigate = useNavigate();
@@ -95,7 +96,7 @@ const AdminDashboard = ({ user, signOut }) => {
       // Fetch all data in parallel for better performance
       const [sessionsRes, itemsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
         supabase.from('sessions').select(`*, session_users (user_id)`).order('created_date', { ascending: false }),
-        supabase.from('items').select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at').order('item_name'),
+        supabase.from('items').select('id, sku, item_code, item_name, category, uom, internal_product_code, tags, created_by, created_at, updated_at').order('item_name').range(0, 9999),
         supabase.from('categories').select('*').order('name'),
         supabase.from('location_usage').select('*').order('name'),
         supabase.from('profiles').select('*').order('name')
@@ -671,6 +672,47 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
     document.body.removeChild(link);
   };
 
+  const downloadItems = () => {
+    if (items.length === 0) {
+      alert('No items to download');
+      return;
+    }
+
+    // Prepare data for Excel
+    const excelData = items.map(item => ({
+      'SKU': item.sku || '',
+      'Item Code': item.item_code || '',
+      'Item Name': item.item_name || '',
+      'Internal Product Code': item.internal_product_code || '',
+      'Category': item.category || '',
+      'UOM': item.uom || '',
+      'Tags': item.tags && item.tags.length > 0 ? item.tags.join(';') : ''
+    }));
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Items');
+
+    // Set column widths
+    const colWidths = [
+      { wch: 15 }, // SKU
+      { wch: 15 }, // Item Code
+      { wch: 30 }, // Item Name
+      { wch: 20 }, // Internal Product Code
+      { wch: 15 }, // Category
+      { wch: 10 }, // UOM
+      { wch: 30 }  // Tags
+    ];
+    worksheet['!cols'] = colWidths;
+
+    // Generate filename with current date
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `items_list_${date}.xlsx`;
+
+    // Write file
+    XLSX.writeFile(workbook, filename);
+  };
 
   const handleParseCSV = async () => {
     if (!bulkFile) {
@@ -814,6 +856,13 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-semibold">Manage Items</h3>
         <div className="flex space-x-2">
+          <button
+            onClick={downloadItems}
+            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center space-x-2"
+          >
+            <Download className="h-4 w-4" />
+            <span>Download Items</span>
+          </button>
           <button
             onClick={handleCreateItem}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2"
