@@ -20,7 +20,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { AlertTriangle, TrendingUp, Clock, CheckCircle, Search } from 'lucide-react';
 import KanbanCardModal from './KanbanCardModal';
 
 // Compact Kanban Card Component
@@ -72,7 +72,7 @@ const KanbanCard = ({ item, getStatusIcon, getFollowUpIcon, onCardClick, isUpdat
 };
 
 // Droppable Column Component
-const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon, onCardClick, updatingItems }) => {
+const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon, onCardClick, updatingItems, searchQuery, onSearchChange }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
   });
@@ -110,14 +110,29 @@ const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon,
       }`}
       style={{ maxHeight: 'calc(100vh - 280px)' }}
     >
-      <div className="flex items-center gap-2 p-4 pb-3 flex-shrink-0">
-        {getColumnStatusIcon(status)}
-        <h3 className="font-semibold text-gray-900 capitalize">
-          {status.replace('_', ' ')}
-        </h3>
-        <span className="bg-white px-2 py-1 text-xs font-medium rounded-full">
-          {items.length}
-        </span>
+      <div className="p-4 pb-3 flex-shrink-0">
+        <div className="flex items-center gap-2 mb-3">
+          {getColumnStatusIcon(status)}
+          <h3 className="font-semibold text-gray-900 capitalize">
+            {status.replace('_', ' ')}
+          </h3>
+          <span className="bg-white px-2 py-1 text-xs font-medium rounded-full">
+            {items.length}
+          </span>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Cari item..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       </div>
 
       <div
@@ -128,7 +143,7 @@ const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon,
           <div className="min-h-[200px]">
             {items.length === 0 ? (
               <div className="text-center py-8 text-gray-500 text-sm">
-                No items in {status.replace('_', ' ')}
+                {searchQuery ? `Tidak ada item yang cocok dengan "${searchQuery}"` : `No items in ${status.replace('_', ' ')}`}
               </div>
             ) : (
               items.map((item) => (
@@ -160,6 +175,44 @@ const KanbanBoard = ({
   const [selectedCard, setSelectedCard] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [updatingItems, setUpdatingItems] = useState(new Set());
+
+  // Search states for each column
+  const [searchQueries, setSearchQueries] = useState({
+    open: '',
+    on_progress: '',
+    closed: ''
+  });
+
+  // Filter function to search items
+  const filterItems = (items, searchQuery) => {
+    if (!searchQuery.trim()) return items;
+
+    const query = searchQuery.toLowerCase().trim();
+    return items.filter(item => {
+      return (
+        item.item_name?.toLowerCase().includes(query) ||
+        item.sku?.toLowerCase().includes(query) ||
+        item.internal_product_code?.toLowerCase().includes(query) ||
+        item.category?.toLowerCase().includes(query) ||
+        item.remarks?.toLowerCase().includes(query)
+      );
+    });
+  };
+
+  // Handle search change for a specific column
+  const handleSearchChange = (status, query) => {
+    setSearchQueries(prev => ({
+      ...prev,
+      [status]: query
+    }));
+  };
+
+  // Filtered reports for each column
+  const filteredReports = {
+    open: filterItems(groupedReports.open || [], searchQueries.open),
+    on_progress: filterItems(groupedReports.on_progress || [], searchQueries.on_progress),
+    closed: filterItems(groupedReports.closed || [], searchQueries.closed)
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -288,31 +341,37 @@ const KanbanBoard = ({
           <DroppableColumn
             title="Open"
             status="open"
-            items={groupedReports.open || []}
+            items={filteredReports.open}
             getStatusIcon={getStatusIcon}
             getFollowUpIcon={getFollowUpIcon}
             onCardClick={handleCardClick}
             updatingItems={updatingItems}
+            searchQuery={searchQueries.open}
+            onSearchChange={(query) => handleSearchChange('open', query)}
           />
-          
+
           <DroppableColumn
             title="On Progress"
             status="on_progress"
-            items={groupedReports.on_progress || []}
+            items={filteredReports.on_progress}
             getStatusIcon={getStatusIcon}
             getFollowUpIcon={getFollowUpIcon}
             onCardClick={handleCardClick}
             updatingItems={updatingItems}
+            searchQuery={searchQueries.on_progress}
+            onSearchChange={(query) => handleSearchChange('on_progress', query)}
           />
 
           <DroppableColumn
             title="Closed"
             status="closed"
-            items={groupedReports.closed || []}
+            items={filteredReports.closed}
             getStatusIcon={getStatusIcon}
             getFollowUpIcon={getFollowUpIcon}
             onCardClick={handleCardClick}
             updatingItems={updatingItems}
+            searchQuery={searchQueries.closed}
+            onSearchChange={(query) => handleSearchChange('closed', query)}
           />
         </div>
 
