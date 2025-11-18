@@ -56,7 +56,7 @@ const StatusList = ({ title, items, onFollowUpStatus, getStatusIcon, getFollowUp
                           <span><strong>Qty:</strong> {item.qty}</span>
                         )}
                         <span>
-                          <strong>Date:</strong> {new Date(item.date_input).toLocaleDateString()}
+                          <strong>Date:</strong> {new Date(item.date_input).toLocaleDateString('id-ID')}
                         </span>
                         {item.user_report_name && (
                           <span><strong>By:</strong> {item.user_report_name}</span>
