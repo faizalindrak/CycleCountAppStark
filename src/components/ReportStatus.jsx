@@ -596,7 +596,7 @@ const ReportStatus = () => {
                 title="Menu"
               >
                 <Menu className="h-5 w-5" />
-                <span>Menu</span>
+                <span className="hidden sm:inline">Menu</span>
               </button>
 
               {/* Dropdown Menu */}
