@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode, X } from 'lucide-react';
+import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode, X, Menu } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
 import BulkFollowUpModal from './BulkFollowUpModal';
@@ -26,11 +26,13 @@ const ReportStatus = () => {
   const [showScanModal, setShowScanModal] = useState(false);
   const [scannedItem, setScannedItem] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: '' }); // type: 'success' | 'error' | 'warning'
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Refs to store subscriptions
   const reportStatusSubscription = useRef(null);
   const profilesSubscription = useRef(null);
   const itemsSubscription = useRef(null);
+  const menuRef = useRef(null);
 
   // Auto-hide toast after 4 seconds
   useEffect(() => {
@@ -41,6 +43,22 @@ const ReportStatus = () => {
       return () => clearTimeout(timer);
     }
   }, [toast.show]);
+
+  // Handle click outside menu to close it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isMenuOpen]);
 
   // Fetch reports on component mount and when filter changes
   useEffect(() => {
@@ -569,6 +587,35 @@ const ReportStatus = () => {
               <Plus className="h-4 w-4" />
               Over
             </button>
+
+            {/* Hamburger Menu */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 flex items-center gap-2"
+                title="Menu"
+              >
+                <Menu className="h-5 w-5" />
+                <span>Menu</span>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isMenuOpen && (
+                <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                  <button
+                    onClick={() => {
+                      handleDownloadReport();
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Report
+                  </button>
+                </div>
+              )}
+            </div>
+
             {isMobileDevice() && (
               <button
                 onClick={() => setShowScanModal(true)}
@@ -579,14 +626,6 @@ const ReportStatus = () => {
                 <span>Scan</span>
               </button>
             )}
-            <button
-              onClick={handleDownloadReport}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center gap-2"
-              title="Download Excel"
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Download</span>
-            </button>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-500" />
               <input
