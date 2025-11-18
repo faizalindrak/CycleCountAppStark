@@ -923,17 +923,20 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
         throw new Error('No valid items to upload');
       }
 
-      // Fetch fresh items data from database to check for existing SKUs
-      const { data: freshItems, error: fetchError } = await supabase
+      // Fetch ALL items from database to check for existing SKUs
+      // Use a very high limit to avoid pagination issues
+      // Most warehouses won't have more than 1M items
+      const { data: existingItems, error: fetchError } = await supabase
         .from('items')
-        .select('sku');
+        .select('sku')
+        .limit(1000000);
 
       if (fetchError) throw fetchError;
 
       // Check for existing SKUs in database (case-insensitive comparison)
-      const existingSkusNormalized = freshItems.map(item => item.sku.trim().toLowerCase());
+      const existingSkusNormalized = existingItems.map(item => item.sku.trim().toLowerCase());
       const duplicatesInDb = itemsToInsert.filter(item =>
-        existingSkusNormalized.includes(item.sku.toLowerCase())
+        existingSkusNormalized.includes(item.sku.trim().toLowerCase())
       ).map(item => item.sku);
 
       setPreviewItems(itemsToInsert);
