@@ -11,7 +11,8 @@ import {
   CheckCircle,
   PlayCircle,
   FileText,
-  ClockIcon
+  ClockIcon,
+  Search
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -36,6 +37,7 @@ const HistoryPage = () => {
   const [endDate, setEndDate] = useState(defaultRange.endDate);
   const [loading, setLoading] = useState(true);
   const [historyData, setHistoryData] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [statistics, setStatistics] = useState({
     totalEvents: 0,
     criticalItems: 0,
@@ -202,6 +204,23 @@ const HistoryPage = () => {
     return profile ? profile.name : 'Unknown';
   };
 
+  // Filter data based on search query
+  const filteredHistoryData = historyData.filter((record) => {
+    if (!searchQuery) return true;
+
+    const query = searchQuery.toLowerCase();
+    return (
+      record.sku?.toLowerCase().includes(query) ||
+      record.internal_product_code?.toLowerCase().includes(query) ||
+      record.item_name?.toLowerCase().includes(query) ||
+      record.inventory_status?.toLowerCase().includes(query) ||
+      record.follow_up_status?.toLowerCase().includes(query) ||
+      getUserName(record.user_report)?.toLowerCase().includes(query) ||
+      getUserName(record.user_follow_up)?.toLowerCase().includes(query) ||
+      record.remarks?.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -244,7 +263,7 @@ const HistoryPage = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Range Picker */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center gap-4 flex-wrap">
@@ -384,10 +403,24 @@ const HistoryPage = () => {
         {/* History Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Riwayat Report</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Menampilkan {historyData.length} records dari {startDate} sampai {endDate}
-            </p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Riwayat Report</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Menampilkan {filteredHistoryData.length} dari {historyData.length} records
+                </p>
+              </div>
+              <div className="relative flex-shrink-0 w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Cari item, SKU, kode, status..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                />
+              </div>
+            </div>
           </div>
 
           {loading ? (
@@ -398,6 +431,17 @@ const HistoryPage = () => {
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">Tidak ada data dalam rentang tanggal ini</p>
+            </div>
+          ) : filteredHistoryData.length === 0 ? (
+            <div className="text-center py-12">
+              <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">Tidak ada hasil untuk pencarian "{searchQuery}"</p>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+              >
+                Reset pencarian
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -437,7 +481,7 @@ const HistoryPage = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {historyData.map((record) => (
+                  {filteredHistoryData.map((record) => (
                     <tr key={record.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(record.date_input).toLocaleDateString('id-ID')}
@@ -446,8 +490,8 @@ const HistoryPage = () => {
                         <div className="text-sm font-medium text-gray-900">{record.sku}</div>
                         <div className="text-xs text-gray-500">{record.internal_product_code}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900 max-w-xs truncate" title={record.item_name}>
+                      <td className="px-6 py-4 min-w-[250px]">
+                        <div className="text-sm text-gray-900" title={record.item_name}>
                           {record.item_name}
                         </div>
                       </td>
@@ -464,16 +508,16 @@ const HistoryPage = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {record.qty || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 min-w-[140px]">
                         {getUserName(record.user_report)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 min-w-[160px]">
                         {formatDateTime(record.created_at)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 min-w-[140px]">
                         {getUserName(record.user_follow_up)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 min-w-[160px]">
                         {formatDateTime(record.updated_at)}
                       </td>
                     </tr>
