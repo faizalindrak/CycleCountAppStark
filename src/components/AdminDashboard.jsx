@@ -902,10 +902,13 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
         const skuNormalized = sku.trim().toLowerCase();
         if (skusInCsv.has(skuNormalized)) {
           duplicatesInCsv.push(sku);
+          console.warn(`Duplicate SKU found in CSV row ${i + 2}: ${sku}`);
+          // Still add to preview but mark as duplicate
         } else {
           skusInCsv.add(skuNormalized);
         }
 
+        // Always add to preview for display, but duplicates will be filtered before upload
         itemsToInsert.push({
           sku: sku.trim(),
           item_code: itemCode,
@@ -923,21 +926,42 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
         throw new Error('No valid items to upload');
       }
 
-      // Fetch ALL items from database to check for existing SKUs
-      // Use a very high limit to avoid pagination issues
-      // Most warehouses won't have more than 1M items
-      const { data: existingItems, error: fetchError } = await supabase
-        .from('items')
-        .select('sku')
-        .limit(1000000);
+      // Fetch ALL items from database using pagination to avoid missing any SKUs
+      console.log('Fetching existing SKUs from database...');
+      let allExistingItems = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (fetchError) throw fetchError;
+      while (hasMore) {
+        const { data: pageData, error: fetchError } = await supabase
+          .from('items')
+          .select('sku')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (fetchError) throw fetchError;
+
+        if (pageData && pageData.length > 0) {
+          allExistingItems = allExistingItems.concat(pageData);
+          page++;
+          hasMore = pageData.length === pageSize; // Continue if we got a full page
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`Found ${allExistingItems.length} existing items in database`);
+      console.log(`Checking ${itemsToInsert.length} items from CSV for duplicates`);
 
       // Check for existing SKUs in database (case-insensitive comparison)
-      const existingSkusNormalized = existingItems.map(item => item.sku.trim().toLowerCase());
+      const existingSkusNormalized = allExistingItems.map(item => item.sku.trim().toLowerCase());
+      console.log('Sample existing SKUs:', existingSkusNormalized.slice(0, 5));
+
       const duplicatesInDb = itemsToInsert.filter(item =>
         existingSkusNormalized.includes(item.sku.trim().toLowerCase())
       ).map(item => item.sku);
+
+      console.log(`Found ${duplicatesInDb.length} duplicates in database:`, duplicatesInDb);
 
       setPreviewItems(itemsToInsert);
       setDuplicateInfo({
@@ -961,11 +985,26 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
       // Remove rowNumber before inserting
       const itemsToInsert = previewItems.map(({ rowNumber, ...item }) => item);
 
+      console.log('=== UPLOAD ATTEMPT ===');
+      console.log(`Uploading ${itemsToInsert.length} items`);
+      console.log('SKUs to upload:', itemsToInsert.map(item => item.sku));
+
+      // Check for duplicates within the upload batch itself
+      const skusInBatch = itemsToInsert.map(item => item.sku.trim().toLowerCase());
+      const duplicatesInBatch = skusInBatch.filter((sku, index) => skusInBatch.indexOf(sku) !== index);
+      if (duplicatesInBatch.length > 0) {
+        console.error('DUPLICATE SKUs IN UPLOAD BATCH:', [...new Set(duplicatesInBatch)]);
+        throw new Error(`Upload contains duplicate SKUs: ${[...new Set(duplicatesInBatch)].join(', ')}`);
+      }
+
       const { error } = await supabase
         .from('items')
         .insert(itemsToInsert);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Upload error:', error);
+        throw error;
+      }
 
       setBulkFile(null);
       setShowPreview(false);
