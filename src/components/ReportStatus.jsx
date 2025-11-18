@@ -548,34 +548,6 @@ const ReportStatus = () => {
               <span className="text-gray-600 hidden sm:block">
                 Welcome, {user?.user_metadata?.name || user?.email}
               </span>
-
-              {/* Hamburger Menu */}
-              <div className="relative" ref={menuRef}>
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="text-gray-600 hover:text-gray-800 p-2 rounded-md hover:bg-gray-100"
-                  title="Menu"
-                >
-                  <Menu className="h-5 w-5" />
-                </button>
-
-                {/* Dropdown Menu */}
-                {isMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                    <button
-                      onClick={() => {
-                        handleDownloadReport();
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download Report
-                    </button>
-                  </div>
-                )}
-              </div>
-
               <button
                 onClick={() => navigate('/home')}
                 className="text-blue-600 hover:text-blue-800"
@@ -615,6 +587,35 @@ const ReportStatus = () => {
               <Plus className="h-4 w-4" />
               Over
             </button>
+
+            {/* Hamburger Menu */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 flex items-center gap-2"
+                title="Menu"
+              >
+                <Menu className="h-5 w-5" />
+                <span>Menu</span>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isMenuOpen && (
+                <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                  <button
+                    onClick={() => {
+                      handleDownloadReport();
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Report
+                  </button>
+                </div>
+              )}
+            </div>
+
             {isMobileDevice() && (
               <button
                 onClick={() => setShowScanModal(true)}
