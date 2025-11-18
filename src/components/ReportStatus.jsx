@@ -588,6 +588,17 @@ const ReportStatus = () => {
               Over
             </button>
 
+            {isMobileDevice() && (
+              <button
+                onClick={() => setShowScanModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+                title="Scan QR Code"
+              >
+                <QrCode className="h-4 w-4" />
+                <span>Scan</span>
+              </button>
+            )}
+
             {/* Hamburger Menu */}
             <div className="relative" ref={menuRef}>
               <button
@@ -615,17 +626,6 @@ const ReportStatus = () => {
                 </div>
               )}
             </div>
-
-            {isMobileDevice() && (
-              <button
-                onClick={() => setShowScanModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
-                title="Scan QR Code"
-              >
-                <QrCode className="h-4 w-4" />
-                <span>Scan</span>
-              </button>
-            )}
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-500" />
               <input
