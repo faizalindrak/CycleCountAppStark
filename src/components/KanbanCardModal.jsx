@@ -65,7 +65,7 @@ const KanbanCardModal = ({ isOpen, onClose, item, onStatusUpdate, getStatusIcon,
                   )}
                   <div className="flex justify-between">
                     <span className="text-gray-500">Date:</span>
-                    <span className="font-medium">{new Date(item.date_input).toLocaleDateString('en-GB')}</span>
+                    <span className="font-medium">{new Date(item.date_input).toLocaleDateString('id-ID')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Inventory Status:</span>
@@ -116,13 +116,13 @@ const KanbanCardModal = ({ isOpen, onClose, item, onStatusUpdate, getStatusIcon,
                 <div>
                   <span className="text-gray-500">Created:</span>
                   <div className="font-medium">
-                    {new Date(item.created_at).toLocaleString('en-GB')}
+                    {new Date(item.created_at).toLocaleString('id-ID')}
                   </div>
                 </div>
                 <div>
                   <span className="text-gray-500">Updated:</span>
                   <div className="font-medium">
-                    {new Date(item.updated_at).toLocaleString('en-GB')}
+                    {new Date(item.updated_at).toLocaleString('id-ID')}
                   </div>
                 </div>
               </div>

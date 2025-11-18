@@ -450,8 +450,8 @@ const ReportStatus = () => {
         { column: 'Follow Up Status', type: String, value: r => r.follow_up_status, width: 18 },
         { column: 'Created By', type: String, value: r => (r.user_report_name || ''), width: 14 },
         { column: 'Updated By', type: String, value: r => (r.user_follow_up_name || ''), width: 14 },
-        { column: 'Created At', type: String, value: r => new Date(r.created_at).toLocaleString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
-        { column: 'Updated At', type: String, value: r => new Date(r.updated_at).toLocaleString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
+        { column: 'Created At', type: String, value: r => new Date(r.created_at).toLocaleString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
+        { column: 'Updated At', type: String, value: r => new Date(r.updated_at).toLocaleString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), width: 22 },
       ];
 
       // Generate filename that reflects the data content
