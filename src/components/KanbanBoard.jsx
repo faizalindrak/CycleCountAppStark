@@ -72,7 +72,7 @@ const KanbanCard = ({ item, getStatusIcon, getFollowUpIcon, onCardClick, isUpdat
 };
 
 // Droppable Column Component
-const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon, onCardClick, updatingItems, searchQuery, onSearchChange }) => {
+const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon, onCardClick, updatingItems, searchQuery, onSearchChange, inventoryFilter, onInventoryFilterToggle }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
   });
@@ -111,14 +111,40 @@ const DroppableColumn = ({ title, items, status, getStatusIcon, getFollowUpIcon,
       style={{ maxHeight: 'calc(100vh - 280px)' }}
     >
       <div className="p-4 pb-3 flex-shrink-0">
-        <div className="flex items-center gap-2 mb-3">
-          {getColumnStatusIcon(status)}
-          <h3 className="font-semibold text-gray-900 capitalize">
-            {status.replace('_', ' ')}
-          </h3>
-          <span className="bg-white px-2 py-1 text-xs font-medium rounded-full">
-            {items.length}
-          </span>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            {getColumnStatusIcon(status)}
+            <h3 className="font-semibold text-gray-900 capitalize">
+              {status.replace('_', ' ')}
+            </h3>
+            <span className="bg-white px-2 py-1 text-xs font-medium rounded-full">
+              {items.length}
+            </span>
+          </div>
+
+          {/* Inventory Status Filter Buttons */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onInventoryFilterToggle('kritis')}
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                inventoryFilter.includes('kritis')
+                  ? 'bg-red-600 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Kritis
+            </button>
+            <button
+              onClick={() => onInventoryFilterToggle('over')}
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                inventoryFilter.includes('over')
+                  ? 'bg-purple-800 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Over
+            </button>
+          </div>
         </div>
 
         {/* Search Input */}
@@ -183,20 +209,38 @@ const KanbanBoard = ({
     closed: ''
   });
 
-  // Filter function to search items
-  const filterItems = (items, searchQuery) => {
-    if (!searchQuery.trim()) return items;
+  // Inventory status filter states for each column
+  // Can be: null (show all), 'kritis', 'over', or ['kritis', 'over'] (show both)
+  const [inventoryFilters, setInventoryFilters] = useState({
+    open: [],
+    on_progress: [],
+    closed: []
+  });
 
-    const query = searchQuery.toLowerCase().trim();
-    return items.filter(item => {
-      return (
-        item.item_name?.toLowerCase().includes(query) ||
-        item.sku?.toLowerCase().includes(query) ||
-        item.internal_product_code?.toLowerCase().includes(query) ||
-        item.category?.toLowerCase().includes(query) ||
-        item.remarks?.toLowerCase().includes(query)
-      );
-    });
+  // Filter function to search items
+  const filterItems = (items, searchQuery, inventoryFilter) => {
+    let filtered = items;
+
+    // Apply inventory status filter
+    if (inventoryFilter && inventoryFilter.length > 0) {
+      filtered = filtered.filter(item => inventoryFilter.includes(item.inventory_status));
+    }
+
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(item => {
+        return (
+          item.item_name?.toLowerCase().includes(query) ||
+          item.sku?.toLowerCase().includes(query) ||
+          item.internal_product_code?.toLowerCase().includes(query) ||
+          item.category?.toLowerCase().includes(query) ||
+          item.remarks?.toLowerCase().includes(query)
+        );
+      });
+    }
+
+    return filtered;
   };
 
   // Handle search change for a specific column
@@ -207,11 +251,26 @@ const KanbanBoard = ({
     }));
   };
 
+  // Handle inventory filter toggle for a specific column
+  const handleInventoryFilterToggle = (status, inventoryStatus) => {
+    setInventoryFilters(prev => {
+      const currentFilters = prev[status] || [];
+      const newFilters = currentFilters.includes(inventoryStatus)
+        ? currentFilters.filter(f => f !== inventoryStatus)
+        : [...currentFilters, inventoryStatus];
+
+      return {
+        ...prev,
+        [status]: newFilters
+      };
+    });
+  };
+
   // Filtered reports for each column
   const filteredReports = {
-    open: filterItems(groupedReports.open || [], searchQueries.open),
-    on_progress: filterItems(groupedReports.on_progress || [], searchQueries.on_progress),
-    closed: filterItems(groupedReports.closed || [], searchQueries.closed)
+    open: filterItems(groupedReports.open || [], searchQueries.open, inventoryFilters.open),
+    on_progress: filterItems(groupedReports.on_progress || [], searchQueries.on_progress, inventoryFilters.on_progress),
+    closed: filterItems(groupedReports.closed || [], searchQueries.closed, inventoryFilters.closed)
   };
 
   const sensors = useSensors(
@@ -348,6 +407,8 @@ const KanbanBoard = ({
             updatingItems={updatingItems}
             searchQuery={searchQueries.open}
             onSearchChange={(query) => handleSearchChange('open', query)}
+            inventoryFilter={inventoryFilters.open}
+            onInventoryFilterToggle={(inventoryStatus) => handleInventoryFilterToggle('open', inventoryStatus)}
           />
 
           <DroppableColumn
@@ -360,6 +421,8 @@ const KanbanBoard = ({
             updatingItems={updatingItems}
             searchQuery={searchQueries.on_progress}
             onSearchChange={(query) => handleSearchChange('on_progress', query)}
+            inventoryFilter={inventoryFilters.on_progress}
+            onInventoryFilterToggle={(inventoryStatus) => handleInventoryFilterToggle('on_progress', inventoryStatus)}
           />
 
           <DroppableColumn
@@ -372,6 +435,8 @@ const KanbanBoard = ({
             updatingItems={updatingItems}
             searchQuery={searchQueries.closed}
             onSearchChange={(query) => handleSearchChange('closed', query)}
+            inventoryFilter={inventoryFilters.closed}
+            onInventoryFilterToggle={(inventoryStatus) => handleInventoryFilterToggle('closed', inventoryStatus)}
           />
         </div>
 
