@@ -186,15 +186,21 @@ const HistoryPage = () => {
 
   // Format date time
   const formatDateTime = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleString('id-ID', {
-      year: 'numeric',
+    if (!dateString) return { date: '-', time: '' };
+    const dateObj = new Date(dateString);
+
+    const date = dateObj.toLocaleDateString('id-ID', {
+      day: '2-digit',
       month: 'short',
-      day: 'numeric',
+      year: '2-digit'
+    });
+
+    const time = dateObj.toLocaleTimeString('id-ID', {
       hour: '2-digit',
       minute: '2-digit'
     });
+
+    return { date, time };
   };
 
   // Get user name
@@ -448,84 +454,91 @@ const HistoryPage = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
-                      Tanggal Input
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                      Tgl Input
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       SKU / Kode
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Nama Item
                     </th>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-1.5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
                       Status Inv
                     </th>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                    <th className="px-1.5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Status F/U
                     </th>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                    <th className="px-1.5 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-14">
                       Qty
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Dibuat Oleh
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Waktu Dibuat
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Follow Up Oleh
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Waktu Update
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredHistoryData.map((record) => (
-                    <tr key={record.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-900">
-                        {new Date(record.date_input).toLocaleDateString('id-ID', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: '2-digit'
-                        })}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{record.sku}</div>
-                        <div className="text-xs text-gray-500">{record.internal_product_code}</div>
-                      </td>
-                      <td className="px-4 py-3 min-w-[250px]">
-                        <div className="text-sm text-gray-900" title={record.item_name}>
-                          {record.item_name}
-                        </div>
-                      </td>
-                      <td className="px-2 py-3 whitespace-nowrap">
-                        <span className={`px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded ${getInventoryStatusBadgeClass(record.inventory_status)}`}>
-                          {record.inventory_status === 'kritis' ? 'Kritis' : 'Over'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-3 whitespace-nowrap">
-                        <span className={`px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded ${getStatusBadgeClass(record.follow_up_status)}`}>
-                          {record.follow_up_status === 'open' ? 'Open' : record.follow_up_status === 'on_progress' ? 'Progress' : 'Closed'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-900 text-center">
-                        {record.qty || '-'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 min-w-[140px]">
-                        {getUserName(record.user_report)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 min-w-[140px]">
-                        {formatDateTime(record.created_at)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 min-w-[140px]">
-                        {getUserName(record.user_follow_up)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 min-w-[140px]">
-                        {formatDateTime(record.updated_at)}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredHistoryData.map((record) => {
+                    const createdDateTime = formatDateTime(record.created_at);
+                    const updatedDateTime = formatDateTime(record.updated_at);
+
+                    return (
+                      <tr key={record.id} className="hover:bg-gray-50">
+                        <td className="px-2 py-2.5 whitespace-nowrap text-xs text-gray-900">
+                          {new Date(record.date_input).toLocaleDateString('id-ID', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: '2-digit'
+                          })}
+                        </td>
+                        <td className="px-2 py-2.5 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{record.sku}</div>
+                          <div className="text-xs text-gray-500">{record.internal_product_code}</div>
+                        </td>
+                        <td className="px-3 py-2.5 min-w-[250px]">
+                          <div className="text-sm text-gray-900" title={record.item_name}>
+                            {record.item_name}
+                          </div>
+                        </td>
+                        <td className="px-1.5 py-2.5 whitespace-nowrap">
+                          <span className={`px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded ${getInventoryStatusBadgeClass(record.inventory_status)}`}>
+                            {record.inventory_status === 'kritis' ? 'Kritis' : 'Over'}
+                          </span>
+                        </td>
+                        <td className="px-1.5 py-2.5 whitespace-nowrap">
+                          <span className={`px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded ${getStatusBadgeClass(record.follow_up_status)}`}>
+                            {record.follow_up_status === 'open' ? 'Open' : record.follow_up_status === 'on_progress' ? 'Progress' : 'Closed'}
+                          </span>
+                        </td>
+                        <td className="px-1.5 py-2.5 whitespace-nowrap text-sm text-gray-900 text-center">
+                          {record.qty || '-'}
+                        </td>
+                        <td className="px-2 py-2.5 whitespace-nowrap text-sm text-gray-900">
+                          {getUserName(record.user_report)}
+                        </td>
+                        <td className="px-2 py-2.5 whitespace-nowrap">
+                          <div className="text-xs text-gray-900 font-medium">{createdDateTime.date}</div>
+                          <div className="text-xs text-gray-500">{createdDateTime.time}</div>
+                        </td>
+                        <td className="px-2 py-2.5 whitespace-nowrap text-sm text-gray-900">
+                          {getUserName(record.user_follow_up)}
+                        </td>
+                        <td className="px-2 py-2.5 whitespace-nowrap">
+                          <div className="text-xs text-gray-900 font-medium">{updatedDateTime.date}</div>
+                          <div className="text-xs text-gray-500">{updatedDateTime.time}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
