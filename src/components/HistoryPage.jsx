@@ -266,7 +266,7 @@ const HistoryPage = () => {
         </div>
       </div>
 
-      <main className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Range Picker */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center gap-4 flex-wrap">
@@ -501,7 +501,7 @@ const HistoryPage = () => {
                           <div className="text-xs font-medium text-gray-900">{record.sku}</div>
                           <div className="text-xs text-gray-500">{record.internal_product_code}</div>
                         </td>
-                        <td className="px-1.5 py-1.5 min-w-[250px]">
+                        <td className="px-1.5 py-1.5 min-w-[180px]">
                           <div className="text-xs text-gray-900" title={record.item_name}>
                             {record.item_name}
                           </div>
