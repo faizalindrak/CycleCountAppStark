@@ -12,7 +12,10 @@ import {
   PlayCircle,
   FileText,
   ClockIcon,
-  Search
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -38,6 +41,8 @@ const HistoryPage = () => {
   const [loading, setLoading] = useState(true);
   const [historyData, setHistoryData] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortColumn, setSortColumn] = useState('created_at');
+  const [sortDirection, setSortDirection] = useState('desc');
   const [statistics, setStatistics] = useState({
     totalEvents: 0,
     criticalItems: 0,
@@ -210,22 +215,97 @@ const HistoryPage = () => {
     return profile ? profile.name : 'Unknown';
   };
 
-  // Filter data based on search query
-  const filteredHistoryData = historyData.filter((record) => {
-    if (!searchQuery) return true;
+  // Handle sort
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
-    const query = searchQuery.toLowerCase();
-    return (
-      record.sku?.toLowerCase().includes(query) ||
-      record.internal_product_code?.toLowerCase().includes(query) ||
-      record.item_name?.toLowerCase().includes(query) ||
-      record.inventory_status?.toLowerCase().includes(query) ||
-      record.follow_up_status?.toLowerCase().includes(query) ||
-      getUserName(record.user_report)?.toLowerCase().includes(query) ||
-      getUserName(record.user_follow_up)?.toLowerCase().includes(query) ||
-      record.remarks?.toLowerCase().includes(query)
-    );
-  });
+  // Get sort icon
+  const getSortIcon = (column) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 inline-block opacity-50" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="h-3 w-3 ml-1 inline-block" />
+      : <ArrowDown className="h-3 w-3 ml-1 inline-block" />;
+  };
+
+  // Filter and sort data
+  const filteredHistoryData = historyData
+    .filter((record) => {
+      if (!searchQuery) return true;
+
+      const query = searchQuery.toLowerCase();
+      return (
+        record.sku?.toLowerCase().includes(query) ||
+        record.internal_product_code?.toLowerCase().includes(query) ||
+        record.item_name?.toLowerCase().includes(query) ||
+        record.inventory_status?.toLowerCase().includes(query) ||
+        record.follow_up_status?.toLowerCase().includes(query) ||
+        getUserName(record.user_report)?.toLowerCase().includes(query) ||
+        getUserName(record.user_follow_up)?.toLowerCase().includes(query) ||
+        record.remarks?.toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortColumn) {
+        case 'date_input':
+          aValue = new Date(a.date_input);
+          bValue = new Date(b.date_input);
+          break;
+        case 'sku':
+          aValue = a.sku?.toLowerCase() || '';
+          bValue = b.sku?.toLowerCase() || '';
+          break;
+        case 'item_name':
+          aValue = a.item_name?.toLowerCase() || '';
+          bValue = b.item_name?.toLowerCase() || '';
+          break;
+        case 'inventory_status':
+          aValue = a.inventory_status || '';
+          bValue = b.inventory_status || '';
+          break;
+        case 'follow_up_status':
+          aValue = a.follow_up_status || '';
+          bValue = b.follow_up_status || '';
+          break;
+        case 'qty':
+          aValue = a.qty || 0;
+          bValue = b.qty || 0;
+          break;
+        case 'user_report':
+          aValue = getUserName(a.user_report)?.toLowerCase() || '';
+          bValue = getUserName(b.user_report)?.toLowerCase() || '';
+          break;
+        case 'created_at':
+          aValue = new Date(a.created_at);
+          bValue = new Date(b.created_at);
+          break;
+        case 'user_follow_up':
+          aValue = getUserName(a.user_follow_up)?.toLowerCase() || '';
+          bValue = getUserName(b.user_follow_up)?.toLowerCase() || '';
+          break;
+        case 'updated_at':
+          aValue = new Date(a.updated_at);
+          bValue = new Date(b.updated_at);
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -451,35 +531,65 @@ const HistoryPage = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                      Tgl Input
+                    <th
+                      className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('date_input')}
+                    >
+                      Tgl Input{getSortIcon('date_input')}
                     </th>
-                    <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      SKU / Kode
+                    <th
+                      className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('sku')}
+                    >
+                      SKU / Kode{getSortIcon('sku')}
                     </th>
-                    <th className="px-1.5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Nama Item
+                    <th
+                      className="px-1.5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('item_name')}
+                    >
+                      Nama Item{getSortIcon('item_name')}
                     </th>
-                    <th className="px-0.5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
-                      Status Inv
+                    <th
+                      className="px-0.5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('inventory_status')}
+                    >
+                      Status Inv{getSortIcon('inventory_status')}
                     </th>
-                    <th className="px-0.5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                      Status F/U
+                    <th
+                      className="px-0.5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('follow_up_status')}
+                    >
+                      Status F/U{getSortIcon('follow_up_status')}
                     </th>
-                    <th className="px-0.5 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-14">
-                      Qty
+                    <th
+                      className="px-0.5 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-14 cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('qty')}
+                    >
+                      Qty{getSortIcon('qty')}
                     </th>
-                    <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Dibuat Oleh
+                    <th
+                      className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('user_report')}
+                    >
+                      Dibuat Oleh{getSortIcon('user_report')}
                     </th>
-                    <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                      Waktu Dibuat
+                    <th
+                      className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('created_at')}
+                    >
+                      Waktu Dibuat{getSortIcon('created_at')}
                     </th>
-                    <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Follow Up Oleh
+                    <th
+                      className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('user_follow_up')}
+                    >
+                      Follow Up Oleh{getSortIcon('user_follow_up')}
                     </th>
-                    <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                      Waktu Update
+                    <th
+                      className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('updated_at')}
+                    >
+                      Waktu Update{getSortIcon('updated_at')}
                     </th>
                   </tr>
                 </thead>
