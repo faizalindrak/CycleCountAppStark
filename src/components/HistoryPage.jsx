@@ -454,34 +454,34 @@ const HistoryPage = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-1.5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-1 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Tgl Input
                     </th>
-                    <th className="px-1.5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       SKU / Kode
                     </th>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1.5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Nama Item
                     </th>
-                    <th className="px-1 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                    <th className="px-0.5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
                       Status Inv
                     </th>
-                    <th className="px-1 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-0.5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Status F/U
                     </th>
-                    <th className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-14">
+                    <th className="px-0.5 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-14">
                       Qty
                     </th>
-                    <th className="px-1.5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Dibuat Oleh
                     </th>
-                    <th className="px-1.5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-1 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Waktu Dibuat
                     </th>
-                    <th className="px-1.5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-1 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Follow Up Oleh
                     </th>
-                    <th className="px-1.5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-1 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Waktu Update
                     </th>
                   </tr>
@@ -493,46 +493,46 @@ const HistoryPage = () => {
 
                     return (
                       <tr key={record.id} className="hover:bg-gray-50">
-                        <td className="px-1.5 py-2.5 whitespace-nowrap text-xs text-gray-900">
+                        <td className="px-1 py-2 whitespace-nowrap text-xs text-gray-900">
                           {new Date(record.date_input).toLocaleDateString('id-ID', {
                             day: '2-digit',
                             month: 'short',
                             year: '2-digit'
                           })}
                         </td>
-                        <td className="px-1.5 py-2.5 whitespace-nowrap">
+                        <td className="px-1 py-2 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">{record.sku}</div>
                           <div className="text-xs text-gray-500">{record.internal_product_code}</div>
                         </td>
-                        <td className="px-2 py-2.5 min-w-[250px]">
+                        <td className="px-1.5 py-2 min-w-[250px]">
                           <div className="text-sm text-gray-900" title={record.item_name}>
                             {record.item_name}
                           </div>
                         </td>
-                        <td className="px-1 py-2.5 whitespace-nowrap">
+                        <td className="px-0.5 py-2 whitespace-nowrap">
                           <span className={`px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded ${getInventoryStatusBadgeClass(record.inventory_status)}`}>
                             {record.inventory_status === 'kritis' ? 'Kritis' : 'Over'}
                           </span>
                         </td>
-                        <td className="px-1 py-2.5 whitespace-nowrap">
+                        <td className="px-0.5 py-2 whitespace-nowrap">
                           <span className={`px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded ${getStatusBadgeClass(record.follow_up_status)}`}>
                             {record.follow_up_status === 'open' ? 'Open' : record.follow_up_status === 'on_progress' ? 'Progress' : 'Closed'}
                           </span>
                         </td>
-                        <td className="px-1 py-2.5 whitespace-nowrap text-sm text-gray-900 text-center">
+                        <td className="px-0.5 py-2 whitespace-nowrap text-sm text-gray-900 text-center">
                           {record.qty || '-'}
                         </td>
-                        <td className="px-1.5 py-2.5 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900">
                           {getUserName(record.user_report)}
                         </td>
-                        <td className="px-1.5 py-2.5 whitespace-nowrap">
+                        <td className="px-1 py-2 whitespace-nowrap">
                           <div className="text-xs text-gray-900 font-medium">{createdDateTime.date}</div>
                           <div className="text-xs text-gray-500">{createdDateTime.time}</div>
                         </td>
-                        <td className="px-1.5 py-2.5 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900">
                           {getUserName(record.user_follow_up)}
                         </td>
-                        <td className="px-1.5 py-2.5 whitespace-nowrap">
+                        <td className="px-1 py-2 whitespace-nowrap">
                           <div className="text-xs text-gray-900 font-medium">{updatedDateTime.date}</div>
                           <div className="text-xs text-gray-500">{updatedDateTime.time}</div>
                         </td>
