@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode, X, Menu } from 'lucide-react';
+import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode, X, Menu, History } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
 import BulkFollowUpModal from './BulkFollowUpModal';
@@ -613,6 +613,16 @@ const ReportStatus = () => {
               {/* Dropdown Menu */}
               {isMenuOpen && (
                 <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                  <button
+                    onClick={() => {
+                      navigate('/history');
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                  >
+                    <History className="h-4 w-4" />
+                    History
+                  </button>
                   <button
                     onClick={() => {
                       handleDownloadReport();
