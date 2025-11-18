@@ -8,6 +8,7 @@ import AdminDashboard from './components/AdminDashboard';
 import SessionSelection from './components/SessionSelection';
 import ItemsList from './components/ItemsList';
 import ReportStatus from './components/ReportStatus';
+import HistoryPage from './components/HistoryPage';
 
 // Protected Route component for authenticated users
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -107,6 +108,16 @@ const App = () => {
             element={
               <ProtectedRoute>
                 <ReportStatus />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* History page */}
+          <Route
+            path="/history"
+            element={
+              <ProtectedRoute>
+                <HistoryPage />
               </ProtectedRoute>
             }
           />
