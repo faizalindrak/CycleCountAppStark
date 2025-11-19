@@ -18,6 +18,21 @@ import {
   ArrowDown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { BarChart, Bar, CartesianGrid, XAxis, LabelList } from "recharts"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
 
 const HistoryPage = () => {
   const { user, signOut } = useAuth();
@@ -307,6 +322,82 @@ const HistoryPage = () => {
       return 0;
     });
 
+  // Prepare chart data - group by date and inventory status
+  const prepareChartData = () => {
+    // Create a map to hold dates and their counts
+    const dateMap = {};
+
+    // Generate all dates in range
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      dateMap[dateStr] = {
+        date: dateStr,
+        kritis: 0,
+        over: 0
+      };
+    }
+
+    // Count reports by date and status
+    historyData.forEach(report => {
+      const dateStr = new Date(report.created_at).toISOString().split('T')[0];
+      if (dateMap[dateStr]) {
+        if (report.inventory_status === 'kritis') {
+          dateMap[dateStr].kritis += 1;
+        } else if (report.inventory_status === 'over') {
+          dateMap[dateStr].over += 1;
+        }
+      }
+    });
+
+    // Convert to array and sort by date
+    return Object.values(dateMap).sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+
+  const chartData = prepareChartData();
+
+  // Chart configuration for shadcn/ui
+  const chartConfig = {
+    over: {
+      label: "Over",
+      color: "#6b21a8", // purple-800
+    },
+    kritis: {
+      label: "Kritis",
+      color: "#dc2626", // red-600
+    },
+  };
+
+  // Custom label renderer untuk menampilkan total
+  const renderCustomLabel = (props) => {
+    // Untuk stacked bar, gunakan index untuk mendapatkan data yang tepat
+    const { x, y, width, index } = props;
+
+    // Check if index is valid and data exists
+    if (index === undefined || !chartData[index]) return null;
+
+    const data = chartData[index];
+    const total = (data.kritis || 0) + (data.over || 0);
+
+    // Hanya tampilkan label jika total > 0
+    if (total === 0) return null;
+
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 5}
+        fill="#374151"
+        textAnchor="middle"
+        fontSize={12}
+        fontWeight={600}
+      >
+        {total}
+      </text>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -482,6 +573,72 @@ const HistoryPage = () => {
             </div>
           </div>
         </div>
+
+        {/* Stacked Bar Chart */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Grafik Event Report per Hari</CardTitle>
+            <CardDescription>
+              Jumlah event report Over dan Kritis berdasarkan tanggal
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pb-2">
+            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+              <BarChart
+                accessibilityLayer
+                data={chartData}
+                margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return date.toLocaleDateString('id-ID', {
+                      day: '2-digit',
+                      month: 'short'
+                    });
+                  }}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(value) => {
+                        const date = new Date(value);
+                        return date.toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'long',
+                          year: 'numeric'
+                        });
+                      }}
+                    />
+                  }
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Bar
+                  dataKey="over"
+                  stackId="a"
+                  fill="var(--color-over)"
+                  radius={[0, 0, 4, 4]}
+                />
+                <Bar
+                  dataKey="kritis"
+                  stackId="a"
+                  fill="var(--color-kritis)"
+                  radius={[4, 4, 0, 0]}
+                >
+                  <LabelList content={renderCustomLabel} />
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
 
         {/* History Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
