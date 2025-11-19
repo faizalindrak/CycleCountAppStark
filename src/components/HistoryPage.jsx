@@ -372,7 +372,11 @@ const HistoryPage = () => {
 
   // Custom label renderer untuk menampilkan total
   const renderCustomLabel = (props) => {
-    const { x, y, width, value, payload } = props;
+    const { x, y, width, payload } = props;
+
+    // Check if payload exists and has the required properties
+    if (!payload) return null;
+
     const total = (payload.kritis || 0) + (payload.over || 0);
 
     // Hanya tampilkan label jika total > 0
