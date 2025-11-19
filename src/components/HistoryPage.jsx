@@ -18,7 +18,7 @@ import {
   ArrowDown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { BarChart, Bar, CartesianGrid, XAxis } from "recharts"
+import { BarChart, Bar, CartesianGrid, XAxis, LabelList } from "recharts"
 import {
   Card,
   CardContent,
@@ -370,6 +370,28 @@ const HistoryPage = () => {
     },
   };
 
+  // Custom label renderer untuk menampilkan total
+  const renderCustomLabel = (props) => {
+    const { x, y, width, value, payload } = props;
+    const total = (payload.kritis || 0) + (payload.over || 0);
+
+    // Hanya tampilkan label jika total > 0
+    if (total === 0) return null;
+
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 5}
+        fill="#374151"
+        textAnchor="middle"
+        fontSize={12}
+        fontWeight={600}
+      >
+        {total}
+      </text>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -559,7 +581,7 @@ const HistoryPage = () => {
               <BarChart
                 accessibilityLayer
                 data={chartData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
                 <XAxis
@@ -604,7 +626,9 @@ const HistoryPage = () => {
                   stackId="a"
                   fill="var(--color-kritis)"
                   radius={[4, 4, 0, 0]}
-                />
+                >
+                  <LabelList content={renderCustomLabel} />
+                </Bar>
               </BarChart>
             </ChartContainer>
           </CardContent>
