@@ -554,12 +554,12 @@ const HistoryPage = () => {
               Jumlah event report Over dan Kritis berdasarkan tanggal
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-2">
             <ChartContainer config={chartConfig} className="h-[300px] w-full">
               <BarChart
                 accessibilityLayer
                 data={chartData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
                 <XAxis
