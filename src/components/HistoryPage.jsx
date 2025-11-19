@@ -18,6 +18,16 @@ import {
   ArrowDown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
 
 const HistoryPage = () => {
   const { user, signOut } = useAuth();
@@ -307,6 +317,42 @@ const HistoryPage = () => {
       return 0;
     });
 
+  // Prepare chart data - group by date and inventory status
+  const prepareChartData = () => {
+    // Create a map to hold dates and their counts
+    const dateMap = {};
+
+    // Generate all dates in range
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      dateMap[dateStr] = {
+        date: dateStr,
+        kritis: 0,
+        over: 0
+      };
+    }
+
+    // Count reports by date and status
+    historyData.forEach(report => {
+      const dateStr = new Date(report.created_at).toISOString().split('T')[0];
+      if (dateMap[dateStr]) {
+        if (report.inventory_status === 'kritis') {
+          dateMap[dateStr].kritis += 1;
+        } else if (report.inventory_status === 'over') {
+          dateMap[dateStr].over += 1;
+        }
+      }
+    });
+
+    // Convert to array and sort by date
+    return Object.values(dateMap).sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+
+  const chartData = prepareChartData();
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -481,6 +527,57 @@ const HistoryPage = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Stacked Bar Chart */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Grafik Event Report per Hari</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Jumlah event report Over dan Kritis berdasarkan tanggal
+            </p>
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart
+              data={chartData}
+              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tickFormatter={(value) => {
+                  const date = new Date(value);
+                  return date.toLocaleDateString('id-ID', {
+                    day: '2-digit',
+                    month: 'short'
+                  });
+                }}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+              />
+              <YAxis />
+              <Tooltip
+                labelFormatter={(value) => {
+                  const date = new Date(value);
+                  return date.toLocaleDateString('id-ID', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric'
+                  });
+                }}
+                formatter={(value, name) => {
+                  const label = name === 'kritis' ? 'Kritis' : 'Over';
+                  return [value, label];
+                }}
+              />
+              <Legend
+                formatter={(value) => value === 'kritis' ? 'Kritis' : 'Over'}
+              />
+              <Bar dataKey="over" stackId="a" fill="#6b21a8" name="over" />
+              <Bar dataKey="kritis" stackId="a" fill="#dc2626" name="kritis" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
         {/* History Table */}
