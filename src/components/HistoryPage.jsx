@@ -372,12 +372,14 @@ const HistoryPage = () => {
 
   // Custom label renderer untuk menampilkan total
   const renderCustomLabel = (props) => {
-    const { x, y, width, payload } = props;
+    // Untuk stacked bar, gunakan index untuk mendapatkan data yang tepat
+    const { x, y, width, index } = props;
 
-    // Check if payload exists and has the required properties
-    if (!payload) return null;
+    // Check if index is valid and data exists
+    if (index === undefined || !chartData[index]) return null;
 
-    const total = (payload.kritis || 0) + (payload.over || 0);
+    const data = chartData[index];
+    const total = (data.kritis || 0) + (data.over || 0);
 
     // Hanya tampilkan label jika total > 0
     if (total === 0) return null;
