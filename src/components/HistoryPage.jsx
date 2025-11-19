@@ -18,16 +18,21 @@ import {
   ArrowDown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { BarChart, Bar, CartesianGrid, XAxis } from "recharts"
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
 
 const HistoryPage = () => {
   const { user, signOut } = useAuth();
@@ -353,6 +358,18 @@ const HistoryPage = () => {
 
   const chartData = prepareChartData();
 
+  // Chart configuration for shadcn/ui
+  const chartConfig = {
+    over: {
+      label: "Over",
+      color: "#6b21a8", // purple-800
+    },
+    kritis: {
+      label: "Kritis",
+      color: "#dc2626", // red-600
+    },
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -530,55 +547,68 @@ const HistoryPage = () => {
         </div>
 
         {/* Stacked Bar Chart */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Grafik Event Report per Hari</h2>
-            <p className="text-sm text-gray-500 mt-1">
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Grafik Event Report per Hari</CardTitle>
+            <CardDescription>
               Jumlah event report Over dan Kritis berdasarkan tanggal
-            </p>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart
-              data={chartData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tickFormatter={(value) => {
-                  const date = new Date(value);
-                  return date.toLocaleDateString('id-ID', {
-                    day: '2-digit',
-                    month: 'short'
-                  });
-                }}
-                angle={-45}
-                textAnchor="end"
-                height={80}
-              />
-              <YAxis />
-              <Tooltip
-                labelFormatter={(value) => {
-                  const date = new Date(value);
-                  return date.toLocaleDateString('id-ID', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric'
-                  });
-                }}
-                formatter={(value, name) => {
-                  const label = name === 'kritis' ? 'Kritis' : 'Over';
-                  return [value, label];
-                }}
-              />
-              <Legend
-                formatter={(value) => value === 'kritis' ? 'Kritis' : 'Over'}
-              />
-              <Bar dataKey="over" stackId="a" fill="#6b21a8" name="over" />
-              <Bar dataKey="kritis" stackId="a" fill="#dc2626" name="kritis" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+              <BarChart
+                accessibilityLayer
+                data={chartData}
+                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+              >
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return date.toLocaleDateString('id-ID', {
+                      day: '2-digit',
+                      month: 'short'
+                    });
+                  }}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(value) => {
+                        const date = new Date(value);
+                        return date.toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'long',
+                          year: 'numeric'
+                        });
+                      }}
+                    />
+                  }
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Bar
+                  dataKey="over"
+                  stackId="a"
+                  fill="var(--color-over)"
+                  radius={[0, 0, 4, 4]}
+                />
+                <Bar
+                  dataKey="kritis"
+                  stackId="a"
+                  fill="var(--color-kritis)"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
 
         {/* History Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
