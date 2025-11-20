@@ -3034,21 +3034,53 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
     try {
       setLoading(true);
 
-      // Fetch all items
-      const { data: allItems, error: itemsError } = await supabase
-        .from('items')
-        .select('id, sku, item_code, item_name, internal_product_code, category')
-        .order('item_name');
+      // Fetch all items with pagination to handle large datasets
+      let allItems = [];
+      let hasMoreItems = true;
+      let itemsStart = 0;
+      const itemsPageSize = 1000;
 
-      if (itemsError) throw itemsError;
+      while (hasMoreItems) {
+        const { data: itemsChunk, error: itemsChunkError } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, internal_product_code, category')
+          .order('item_name')
+          .range(itemsStart, itemsStart + itemsPageSize - 1);
 
-      // Fetch items in this group
-      const { data: groupItemsData, error: groupItemsError } = await supabase
-        .from('item_group_items')
-        .select('item_id')
-        .eq('item_group_id', group.id);
+        if (itemsChunkError) throw itemsChunkError;
 
-      if (groupItemsError) throw groupItemsError;
+        if (itemsChunk && itemsChunk.length > 0) {
+          allItems = [...allItems, ...itemsChunk];
+          itemsStart += itemsPageSize;
+          hasMoreItems = itemsChunk.length === itemsPageSize;
+        } else {
+          hasMoreItems = false;
+        }
+      }
+
+      // Fetch items in this group with pagination
+      let groupItemsData = [];
+      let hasMoreGroupItems = true;
+      let groupItemsStart = 0;
+      const groupItemsPageSize = 1000;
+
+      while (hasMoreGroupItems) {
+        const { data: groupItemsChunk, error: groupItemsChunkError } = await supabase
+          .from('item_group_items')
+          .select('item_id')
+          .eq('item_group_id', group.id)
+          .range(groupItemsStart, groupItemsStart + groupItemsPageSize - 1);
+
+        if (groupItemsChunkError) throw groupItemsChunkError;
+
+        if (groupItemsChunk && groupItemsChunk.length > 0) {
+          groupItemsData = [...groupItemsData, ...groupItemsChunk];
+          groupItemsStart += groupItemsPageSize;
+          hasMoreGroupItems = groupItemsChunk.length === groupItemsPageSize;
+        } else {
+          hasMoreGroupItems = false;
+        }
+      }
 
       const groupItemIds = new Set(groupItemsData.map(gi => gi.item_id));
       const available = allItems.filter(item => !groupItemIds.has(item.id));
