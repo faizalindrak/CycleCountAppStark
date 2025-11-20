@@ -24,7 +24,8 @@ import {
   Hash,
   Code,
   Folder,
-  Home
+  Home,
+  Layers
 } from 'lucide-react';
 import { supabase, checkCategoryUsage, checkLocationUsage, softDeleteLocation, reactivateLocation } from '../lib/supabase';
 import TagManagement from './TagManagement';
@@ -48,6 +49,7 @@ const AdminDashboard = ({ user, signOut }) => {
   // Shared state for all manager components
   const [sessions, setSessions] = useState([]);
   const [items, setItems] = useState([]);
+  const [itemGroups, setItemGroups] = useState([]);
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [users, setUsers] = useState([]);
@@ -66,6 +68,7 @@ const AdminDashboard = ({ user, signOut }) => {
         if (cacheAge < cacheDuration) {
           setSessions(parsed.sessions || []);
           setItems(parsed.items || []);
+          setItemGroups(parsed.itemGroups || []);
           setCategories(parsed.categories || []);
           setLocations(parsed.locations || []);
           setUsers(parsed.users || []);
@@ -123,8 +126,9 @@ const AdminDashboard = ({ user, signOut }) => {
       }
 
       // Fetch other data in parallel
-      const [sessionsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
+      const [sessionsRes, itemGroupsRes, categoriesRes, locationsRes, usersRes] = await Promise.all([
         supabase.from('sessions').select(`*, session_users (user_id)`).order('created_date', { ascending: false }),
+        supabase.from('item_groups').select('*, item_group_items(item_id)').order('name'),
         supabase.from('categories').select('*').order('name'),
         supabase.from('location_usage').select('*').order('name'),
         supabase.from('profiles').select('*').order('name')
@@ -159,18 +163,21 @@ const AdminDashboard = ({ user, signOut }) => {
 
       const sessionsData = sessionsRes.data || [];
       const itemsData = itemsRes.data || [];
+      const itemGroupsData = itemGroupsRes.data || [];
       const categoriesData = categoriesRes.data || [];
       const locationsData = locationsRes.data || [];
       const usersData = usersRes.data || [];
 
       if (sessionsRes.error) throw sessionsRes.error;
       if (itemsRes.error) throw itemsRes.error;
+      if (itemGroupsRes.error) throw itemGroupsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
       if (locationsRes.error) throw locationsRes.error;
       if (usersRes.error) throw usersRes.error;
 
       setSessions(sessionsData);
       setItems(itemsData);
+      setItemGroups(itemGroupsData);
       setCategories(categoriesData);
       setLocations(locationsData);
       setUsers(usersData);
@@ -180,6 +187,7 @@ const AdminDashboard = ({ user, signOut }) => {
       const dataToCache = {
         sessions: sessionsData,
         items: itemsData,
+        itemGroups: itemGroupsData,
         categories: categoriesData,
         locations: locationsData,
         users: usersData,
@@ -226,6 +234,7 @@ const AdminDashboard = ({ user, signOut }) => {
 
   const tabs = [
     { id: 'sessions', label: 'Sessions', icon: ClipboardList, path: '/admin/sessions' },
+    { id: 'item-groups', label: 'Item Groups', icon: Layers, path: '/admin/item-groups' },
     { id: 'items', label: 'Items', icon: Package, path: '/admin/items' },
     { id: 'tags', label: 'Tags', icon: Tag, path: '/admin/tags' },
     { id: 'users', label: 'Users', icon: Users, path: '/admin/users' },
@@ -371,6 +380,7 @@ const AdminDashboard = ({ user, signOut }) => {
         ) : (
           <Routes>
             <Route path="sessions" element={<SessionsManager sessions={sessions} setSessions={setSessions} onDataChange={fetchAllData} />} />
+            <Route path="item-groups" element={<ItemGroupsManager itemGroups={itemGroups} setItemGroups={setItemGroups} items={items} onDataChange={fetchAllData} />} />
             <Route path="items" element={<ItemsManager items={items} setItems={setItems} categories={categories} setCategories={setCategories} onDataChange={fetchAllData} />} />
             <Route path="tags" element={
               <>
@@ -659,6 +669,181 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
           }}
           onSave={onDataChange}
           onDataChange={onDataChange}
+        />
+      )}
+    </div>
+  );
+});
+
+// Item Groups Manager Component
+const ItemGroupsManager = React.memo(({ itemGroups, setItemGroups, items, onDataChange }) => {
+  const { user } = useAuth();
+  const [showEditor, setShowEditor] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [showItemsManagement, setShowItemsManagement] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const handleCreateGroup = () => {
+    setEditingGroup(null);
+    setShowEditor(true);
+  };
+
+  const handleEditGroup = (group) => {
+    setEditingGroup(group);
+    setShowEditor(true);
+  };
+
+  const handleDeleteGroup = async (groupId) => {
+    if (!window.confirm('Are you sure you want to delete this item group? This will not delete the items themselves.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('item_groups')
+        .delete()
+        .eq('id', groupId);
+
+      if (error) throw error;
+
+      await onDataChange();
+    } catch (err) {
+      console.error('Error deleting item group:', err);
+      alert('Error deleting item group: ' + err.message);
+    }
+  };
+
+  const handleManageItems = (group) => {
+    setSelectedGroup(group);
+    setShowItemsManagement(true);
+  };
+
+  // Filter groups based on search term
+  const filteredGroups = React.useMemo(() => {
+    if (!searchTerm.trim()) return itemGroups;
+
+    const searchLower = searchTerm.toLowerCase().trim();
+    return itemGroups.filter(group => {
+      return (
+        group.name?.toLowerCase().includes(searchLower) ||
+        group.description?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [itemGroups, searchTerm]);
+
+  return (
+    <div>
+      <div className="mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-semibold">Item Groups</h3>
+            <p className="text-gray-600 text-sm mt-1">
+              Create groups of items for easy bulk assignment to sessions.
+            </p>
+          </div>
+          <button
+            onClick={handleCreateGroup}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center justify-center space-x-2 w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create Item Group</span>
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="mt-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search item groups..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      {filteredGroups.length === 0 ? (
+        <div className="bg-white shadow overflow-hidden sm:rounded-md p-6 text-center">
+          <Layers className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-500">
+            {searchTerm ? 'No item groups found matching your search.' : 'No item groups yet. Create one to get started!'}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <ul className="divide-y divide-gray-200">
+            {filteredGroups.map((group) => (
+              <li key={group.id} className="px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {group.name}
+                    </h3>
+                    {group.description && (
+                      <p className="mt-1 text-sm text-gray-500">{group.description}</p>
+                    )}
+                    <div className="mt-2 flex items-center gap-x-4 text-sm text-gray-500">
+                      <span className="flex items-center">
+                        <Package className="h-4 w-4 mr-1" />
+                        {group.item_group_items?.length || 0} item(s)
+                      </span>
+                      <span className="flex items-center">
+                        <Calendar className="h-4 w-4 mr-1" />
+                        {new Date(group.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleManageItems(group)}
+                      className="text-green-600 hover:text-green-800 p-2"
+                      title="Manage Items"
+                    >
+                      <Package className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleEditGroup(group)}
+                      className="text-indigo-600 hover:text-indigo-800 p-2"
+                      title="Edit Group"
+                    >
+                      <Edit className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteGroup(group.id)}
+                      className="text-red-600 hover:text-red-800 p-2"
+                      title="Delete Group"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {showEditor && (
+        <ItemGroupEditor
+          group={editingGroup}
+          onClose={() => setShowEditor(false)}
+          onSave={onDataChange}
+        />
+      )}
+
+      {showItemsManagement && (
+        <GroupItemsModal
+          group={selectedGroup}
+          onClose={() => {
+            setShowItemsManagement(false);
+            setSelectedGroup(null);
+            onDataChange();
+          }}
+          onSave={onDataChange}
         />
       )}
     </div>
@@ -2259,13 +2444,16 @@ const UserAssignmentModal = React.memo(({ session, onClose, onSave }) => {
 const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange }) => {
   const [availableItems, setAvailableItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [itemGroups, setItemGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [activeTab, setActiveTab] = useState('items');
 
   useEffect(() => {
     if (session) {
       fetchItems();
+      fetchItemGroups();
     }
   }, [session]);
 
@@ -2301,6 +2489,76 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       console.error('Error fetching items:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchItemGroups = async () => {
+    try {
+      const { data: groups, error } = await supabase
+        .from('item_groups')
+        .select(`
+          id,
+          name,
+          description,
+          item_group_items (
+            item_id,
+            items (
+              id,
+              sku,
+              item_name
+            )
+          )
+        `)
+        .order('name');
+
+      if (error) throw error;
+      setItemGroups(groups || []);
+    } catch (err) {
+      console.error('Error fetching item groups:', err);
+    }
+  };
+
+  const handleAddGroup = async (groupId) => {
+    try {
+      setAssigning(true);
+
+      // Get items from this group
+      const group = itemGroups.find(g => g.id === groupId);
+      if (!group || !group.item_group_items) return;
+
+      // Get item IDs from the group that are not already in the session
+      const groupItemIds = group.item_group_items.map(gi => gi.item_id);
+      const currentSelectedIds = new Set(selectedItems.map(item => item.id));
+      const newItemIds = groupItemIds.filter(id => !currentSelectedIds.has(id));
+
+      if (newItemIds.length === 0) {
+        alert('All items from this group are already in the session.');
+        return;
+      }
+
+      // Insert items to session
+      const itemsToAdd = newItemIds.map(itemId => ({
+        session_id: session.id,
+        item_id: itemId
+      }));
+
+      const { error } = await supabase
+        .from('session_items')
+        .insert(itemsToAdd);
+
+      if (error) throw error;
+
+      // Update state
+      const itemsToMove = availableItems.filter(item => newItemIds.includes(item.id));
+      setSelectedItems(prev => [...prev, ...itemsToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      setAvailableItems(prev => prev.filter(item => !newItemIds.includes(item.id)));
+
+      alert(`Successfully added ${newItemIds.length} items from "${group.name}" to the session.`);
+    } catch (err) {
+      console.error('Error adding group:', err);
+      alert('Error adding items from group: ' + err.message);
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -2389,6 +2647,12 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
     (item.tags && item.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
   );
 
+  const filteredGroups = itemGroups.filter(group =>
+    !searchTerm.trim() ||
+    group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    group.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -2401,12 +2665,39 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="border-b border-gray-200 px-4">
+          <nav className="-mb-px flex space-x-4">
+            <button
+              onClick={() => setActiveTab('items')}
+              className={`py-3 px-2 border-b-2 font-medium text-sm ${
+                activeTab === 'items'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Individual Items
+            </button>
+            <button
+              onClick={() => setActiveTab('groups')}
+              className={`py-3 px-2 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                activeTab === 'groups'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Layers className="h-4 w-4" />
+              Item Groups
+            </button>
+          </nav>
+        </div>
+
         <div className="p-6 flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="spinner"></div>
             </div>
-          ) : (
+          ) : activeTab === 'items' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Available Items */}
               <div>
@@ -2495,6 +2786,86 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
                 </div>
               </div>
             </div>
+          ) : (
+            /* Item Groups Tab */
+            <div>
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Search item groups..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {filteredGroups.length === 0 ? (
+                <div className="text-center py-8">
+                  <Layers className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500">
+                    {searchTerm ? 'No item groups found matching your search.' : 'No item groups available. Create some in the Item Groups tab first.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredGroups.map(group => (
+                    <div key={group.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h5 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <Layers className="h-5 w-5 text-blue-600" />
+                            {group.name}
+                          </h5>
+                          {group.description && (
+                            <p className="text-sm text-gray-600 mt-1">{group.description}</p>
+                          )}
+                          <p className="text-sm text-gray-500 mt-2 flex items-center gap-1">
+                            <Package className="h-4 w-4" />
+                            {group.item_group_items?.length || 0} items in this group
+                          </p>
+                          {group.item_group_items && group.item_group_items.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-400 mb-1">Preview:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {group.item_group_items.slice(0, 3).map(gi => (
+                                  <span key={gi.item_id} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                    {gi.items?.item_name}
+                                  </span>
+                                ))}
+                                {group.item_group_items.length > 3 && (
+                                  <span className="text-xs text-gray-500 px-2 py-1">
+                                    +{group.item_group_items.length - 3} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleAddGroup(group.id)}
+                          disabled={assigning || !group.item_group_items || group.item_group_items.length === 0}
+                          className="ml-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add All
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedItems.length > 0 && (
+                <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <h5 className="font-semibold text-green-900 mb-2">
+                    Selected Items ({selectedItems.length})
+                  </h5>
+                  <p className="text-sm text-green-700">
+                    {selectedItems.length} item(s) are currently added to this session. Switch to "Individual Items" tab to view or remove them.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -2512,6 +2883,594 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
 });
 
 // Placeholder components for editors
+// Item Group Editor Component
+const ItemGroupEditor = React.memo(({ group, onClose, onSave }) => {
+  const { user } = useAuth();
+  const [formData, setFormData] = useState({
+    name: group?.name || '',
+    description: group?.description || ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const groupData = {
+        name: formData.name,
+        description: formData.description
+      };
+
+      if (group) {
+        // Update
+        const { error } = await supabase
+          .from('item_groups')
+          .update(groupData)
+          .eq('id', group.id);
+        if (error) throw error;
+      } else {
+        // Create
+        const { error } = await supabase
+          .from('item_groups')
+          .insert([{
+            ...groupData,
+            created_by: user.id
+          }]);
+        if (error) throw error;
+      }
+
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Error saving item group:', err);
+      setError(err.message || 'Failed to save item group');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg w-full max-w-md flex flex-col">
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-xl font-bold">
+            {group ? 'Edit Item Group' : 'Create New Item Group'}
+          </h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+        <div className="p-6">
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Group Name *
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows="3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Optional description for this group"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2 disabled:bg-blue-400"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <div className="spinner-small"></div>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    <span>{group ? 'Update' : 'Create'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Group Items Modal Component - Manage items in a group
+const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
+  const [availableItems, setAvailableItems] = useState([]);
+  const [groupItems, setGroupItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('available');
+  const [groupItemIds, setGroupItemIds] = useState(new Set());
+  const [hasMoreAvailable, setHasMoreAvailable] = useState(true);
+  const [availableOffset, setAvailableOffset] = useState(0);
+  const loadMoreRef = React.useRef(null);
+
+  useEffect(() => {
+    fetchGroupItems();
+  }, [group]);
+
+  // Load initial available items when group items are loaded
+  useEffect(() => {
+    if (!loading && groupItemIds.size >= 0 && !searchTerm.trim() && availableItems.length === 0) {
+      loadInitialAvailableItems();
+    }
+  }, [loading]);
+
+  // Debounced search for available items
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      // Reset to initial state when search is cleared
+      if (availableOffset > 0) {
+        setAvailableItems([]);
+        setAvailableOffset(0);
+        setHasMoreAvailable(true);
+        loadInitialAvailableItems();
+      }
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      searchAvailableItems(searchTerm);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const currentRef = loadMoreRef.current;
+    if (!currentRef || searchTerm.trim()) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreAvailable && !loadingMore) {
+          loadMoreAvailableItems();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(currentRef);
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMoreAvailable, loadingMore, searchTerm, availableOffset]);
+
+  // Fetch only group items (not all items - too heavy)
+  const fetchGroupItems = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch items in this group with pagination
+      let groupItemsData = [];
+      let hasMoreGroupItems = true;
+      let groupItemsStart = 0;
+      const groupItemsPageSize = 1000;
+
+      while (hasMoreGroupItems) {
+        const { data: groupItemsChunk, error: groupItemsChunkError } = await supabase
+          .from('item_group_items')
+          .select('item_id')
+          .eq('item_group_id', group.id)
+          .range(groupItemsStart, groupItemsStart + groupItemsPageSize - 1);
+
+        if (groupItemsChunkError) throw groupItemsChunkError;
+
+        if (groupItemsChunk && groupItemsChunk.length > 0) {
+          groupItemsData = [...groupItemsData, ...groupItemsChunk];
+          groupItemsStart += groupItemsPageSize;
+          hasMoreGroupItems = groupItemsChunk.length === groupItemsPageSize;
+        } else {
+          hasMoreGroupItems = false;
+        }
+      }
+
+      const itemIds = new Set(groupItemsData.map(gi => gi.item_id));
+      setGroupItemIds(itemIds);
+
+      // Fetch full item details for items in group
+      if (itemIds.size > 0) {
+        const { data: itemsInGroup, error: itemsError } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, internal_product_code, category')
+          .in('id', Array.from(itemIds))
+          .order('item_name');
+
+        if (itemsError) throw itemsError;
+        setGroupItems(itemsInGroup || []);
+      } else {
+        setGroupItems([]);
+      }
+    } catch (err) {
+      console.error('Error fetching group items:', err);
+      alert('Error loading items: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load initial available items (first batch)
+  const loadInitialAvailableItems = async () => {
+    try {
+      const pageSize = 50;
+      const { data: items, error } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category')
+        .order('item_name')
+        .range(0, pageSize - 1);
+
+      if (error) throw error;
+
+      // Filter out items already in group
+      const available = (items || []).filter(item => !groupItemIds.has(item.id));
+      setAvailableItems(available);
+      setAvailableOffset(pageSize);
+      setHasMoreAvailable(items && items.length === pageSize);
+    } catch (err) {
+      console.error('Error loading initial items:', err);
+      alert('Error loading items: ' + err.message);
+    }
+  };
+
+  // Load more available items (infinite scroll)
+  const loadMoreAvailableItems = async () => {
+    try {
+      setLoadingMore(true);
+      const pageSize = 50;
+      const { data: items, error } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category')
+        .order('item_name')
+        .range(availableOffset, availableOffset + pageSize - 1);
+
+      if (error) throw error;
+
+      // Filter out items already in group
+      const available = (items || []).filter(item => !groupItemIds.has(item.id));
+      setAvailableItems(prev => [...prev, ...available]);
+      setAvailableOffset(prev => prev + pageSize);
+      setHasMoreAvailable(items && items.length === pageSize);
+    } catch (err) {
+      console.error('Error loading more items:', err);
+      alert('Error loading more items: ' + err.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Search available items from server (only when user types)
+  const searchAvailableItems = async (searchText) => {
+    try {
+      setSearchLoading(true);
+      const search = searchText.toLowerCase().trim();
+
+      // Build query to search across multiple fields
+      let query = supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category')
+        .order('item_name')
+        .limit(100); // Limit results to 100 for performance
+
+      // Search using OR conditions
+      query = query.or(
+        `sku.ilike.%${search}%,` +
+        `item_code.ilike.%${search}%,` +
+        `item_name.ilike.%${search}%,` +
+        `internal_product_code.ilike.%${search}%,` +
+        `category.ilike.%${search}%`
+      );
+
+      const { data: searchResults, error } = await query;
+
+      if (error) throw error;
+
+      // Filter out items already in group
+      const available = (searchResults || []).filter(item => !groupItemIds.has(item.id));
+      setAvailableItems(available);
+    } catch (err) {
+      console.error('Error searching items:', err);
+      alert('Error searching items: ' + err.message);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleAddItem = async (itemId) => {
+    try {
+      const { error } = await supabase
+        .from('item_group_items')
+        .insert([{ item_group_id: group.id, item_id: itemId }]);
+
+      if (error) throw error;
+
+      // Move item from available to group
+      const item = availableItems.find(i => i.id === itemId);
+      setAvailableItems(prev => prev.filter(i => i.id !== itemId));
+      setGroupItems(prev => [...prev, item].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      setGroupItemIds(prev => new Set([...prev, itemId]));
+      // onSave() will be called when modal closes, not on every add
+    } catch (err) {
+      console.error('Error adding item to group:', err);
+      alert('Error adding item: ' + err.message);
+    }
+  };
+
+  const handleRemoveItem = async (itemId) => {
+    try {
+      const { error } = await supabase
+        .from('item_group_items')
+        .delete()
+        .eq('item_group_id', group.id)
+        .eq('item_id', itemId);
+
+      if (error) throw error;
+
+      // Move item from group to available (if search is active, add back to available list)
+      const item = groupItems.find(i => i.id === itemId);
+      setGroupItems(prev => prev.filter(i => i.id !== itemId));
+      setGroupItemIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(itemId);
+        return newSet;
+      });
+
+      // If there's a search term and removed item matches, add it to available items
+      if (searchTerm.trim() && item) {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch =
+          item.sku?.toLowerCase().includes(search) ||
+          item.item_code?.toLowerCase().includes(search) ||
+          item.item_name?.toLowerCase().includes(search) ||
+          item.internal_product_code?.toLowerCase().includes(search) ||
+          item.category?.toLowerCase().includes(search);
+
+        if (matchesSearch) {
+          setAvailableItems(prev => [...prev, item].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+        }
+      }
+      // onSave() will be called when modal closes, not on every remove
+    } catch (err) {
+      console.error('Error removing item from group:', err);
+      alert('Error removing item: ' + err.message);
+    }
+  };
+
+  // Filter group items on client side (already loaded)
+  const filteredGroupItems = groupItems.filter(item => {
+    if (!searchTerm.trim()) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      item.sku?.toLowerCase().includes(search) ||
+      item.item_code?.toLowerCase().includes(search) ||
+      item.item_name?.toLowerCase().includes(search) ||
+      item.internal_product_code?.toLowerCase().includes(search) ||
+      item.category?.toLowerCase().includes(search)
+    );
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg w-full max-w-4xl flex flex-col max-h-[90vh]">
+        <div className="p-4 border-b flex justify-between items-center">
+          <div>
+            <h3 className="text-xl font-bold">Manage Items in Group</h3>
+            <p className="text-sm text-gray-600 mt-1">{group.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200 px-4">
+          <nav className="-mb-px flex space-x-4">
+            <button
+              onClick={() => setActiveTab('available')}
+              className={`py-3 px-2 border-b-2 font-medium text-sm ${
+                activeTab === 'available'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Available Items {searchTerm.trim() ? `(${availableItems.length})` : ''}
+            </button>
+            <button
+              onClick={() => setActiveTab('in-group')}
+              className={`py-3 px-2 border-b-2 font-medium text-sm ${
+                activeTab === 'in-group'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              In Group ({filteredGroupItems.length})
+            </button>
+          </nav>
+        </div>
+
+        {/* Search */}
+        <div className="p-4 border-b">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="spinner"></div>
+              <span className="ml-2 text-gray-600">Loading items...</span>
+            </div>
+          ) : (
+            <div>
+              {activeTab === 'available' ? (
+                <div className="space-y-2">
+                  {searchLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="spinner-small"></div>
+                      <span className="ml-2 text-gray-600">Searching items...</span>
+                    </div>
+                  ) : availableItems.length === 0 && searchTerm.trim() ? (
+                    <p className="text-center text-gray-500 py-8">
+                      No items found matching "{searchTerm}"
+                    </p>
+                  ) : availableItems.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">
+                      No available items to add.
+                    </p>
+                  ) : (
+                    <>
+                      {/* Search info banner */}
+                      {searchTerm.trim() && availableItems.length === 100 && (
+                        <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
+                          Showing first 100 results. Refine your search for more specific results.
+                        </div>
+                      )}
+
+                      {/* Items list */}
+                      {availableItems.map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50">
+                          <div>
+                            <p className="font-medium text-gray-900">{item.item_name}</p>
+                            <p className="text-sm text-gray-500">
+                              SKU: {item.sku} | Code: {item.item_code} | Category: {item.category}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleAddItem(item.id)}
+                            className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 flex items-center space-x-1"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Add</span>
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Infinite scroll trigger */}
+                      {!searchTerm.trim() && hasMoreAvailable && (
+                        <div ref={loadMoreRef} className="flex items-center justify-center py-4">
+                          {loadingMore ? (
+                            <>
+                              <div className="spinner-small"></div>
+                              <span className="ml-2 text-gray-600">Loading more items...</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-400 text-sm">Scroll for more items</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* End of list */}
+                      {!searchTerm.trim() && !hasMoreAvailable && availableItems.length > 0 && (
+                        <p className="text-center text-gray-400 text-sm py-4">
+                          No more items to load
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredGroupItems.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">
+                      {searchTerm ? 'No items found matching your search.' : 'No items in this group yet. Add some from the Available Items tab.'}
+                    </p>
+                  ) : (
+                    filteredGroupItems.map(item => (
+                      <div key={item.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50">
+                        <div>
+                          <p className="font-medium text-gray-900">{item.item_name}</p>
+                          <p className="text-sm text-gray-500">
+                            SKU: {item.sku} | Code: {item.item_code} | Category: {item.category}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 flex items-center space-x-1"
+                        >
+                          <X className="h-4 w-4" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t bg-gray-50">
+          <button
+            onClick={onClose}
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 const SessionEditor = React.memo(({ session, onClose, onSave }) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
