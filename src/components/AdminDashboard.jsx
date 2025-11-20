@@ -2498,30 +2498,79 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
   const [selectedItems, setSelectedItems] = useState([]);
   const [itemGroups, setItemGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [assigning, setAssigning] = useState(false);
   const [activeTab, setActiveTab] = useState('items');
+  const [selectedItemIds, setSelectedItemIds] = useState(new Set());
+  const [hasMoreAvailable, setHasMoreAvailable] = useState(true);
+  const [availableOffset, setAvailableOffset] = useState(0);
+  const loadMoreRef = React.useRef(null);
 
   useEffect(() => {
     if (session) {
-      fetchItems();
+      fetchSelectedItems();
       fetchItemGroups();
     }
   }, [session]);
 
-  const fetchItems = async () => {
+  // Load initial available items when selected items are loaded
+  useEffect(() => {
+    if (!loading && selectedItemIds.size >= 0 && !searchTerm.trim() && availableItems.length === 0) {
+      loadInitialAvailableItems();
+    }
+  }, [loading]);
+
+  // Debounced search for available items
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      // Reset to initial state when search is cleared
+      if (availableOffset > 0) {
+        setAvailableItems([]);
+        setAvailableOffset(0);
+        setHasMoreAvailable(true);
+        loadInitialAvailableItems();
+      }
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      searchAvailableItems(searchTerm);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const currentRef = loadMoreRef.current;
+    if (!currentRef || searchTerm.trim()) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreAvailable && !loadingMore) {
+          loadMoreAvailableItems();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(currentRef);
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMoreAvailable, loadingMore, searchTerm, availableOffset]);
+
+  // Fetch only selected items (full list)
+  const fetchSelectedItems = async () => {
     try {
       setLoading(true);
 
-      // Fetch all items
-      const { data: allItems, error: itemsError } = await supabase
-        .from('items')
-        .select('id, sku, item_code, item_name, internal_product_code, category, tags')
-        .order('item_name');
-
-      if (itemsError) throw itemsError;
-
-      // Fetch currently selected items
+      // Fetch currently selected items IDs
       const { data: selected, error: selectedError } = await supabase
         .from('session_items')
         .select('item_id')
@@ -2529,18 +2578,109 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
 
       if (selectedError) throw selectedError;
 
-      const selectedItemIds = new Set(selected.map(s => s.item_id));
+      const itemIds = new Set(selected.map(s => s.item_id));
+      setSelectedItemIds(itemIds);
 
-      // Separate available and selected items
-      const available = allItems.filter(item => !selectedItemIds.has(item.id));
-      const selectedList = allItems.filter(item => selectedItemIds.has(item.id));
+      // Fetch full item details for selected items
+      if (itemIds.size > 0) {
+        const { data: itemsInSession, error: itemsError } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, internal_product_code, category, tags')
+          .in('id', Array.from(itemIds))
+          .order('item_name');
 
-      setAvailableItems(available);
-      setSelectedItems(selectedList);
+        if (itemsError) throw itemsError;
+        setSelectedItems(itemsInSession || []);
+      } else {
+        setSelectedItems([]);
+      }
     } catch (err) {
-      console.error('Error fetching items:', err);
+      console.error('Error fetching selected items:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load initial available items (first batch)
+  const loadInitialAvailableItems = async () => {
+    try {
+      const pageSize = 50;
+      const { data: items, error } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category, tags')
+        .order('item_name')
+        .range(0, pageSize - 1);
+
+      if (error) throw error;
+
+      // Filter out items already in session
+      const available = (items || []).filter(item => !selectedItemIds.has(item.id));
+      setAvailableItems(available);
+      setAvailableOffset(pageSize);
+      setHasMoreAvailable(items && items.length === pageSize);
+    } catch (err) {
+      console.error('Error loading initial items:', err);
+    }
+  };
+
+  // Load more available items (infinite scroll)
+  const loadMoreAvailableItems = async () => {
+    try {
+      setLoadingMore(true);
+      const pageSize = 50;
+      const { data: items, error } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category, tags')
+        .order('item_name')
+        .range(availableOffset, availableOffset + pageSize - 1);
+
+      if (error) throw error;
+
+      // Filter out items already in session
+      const available = (items || []).filter(item => !selectedItemIds.has(item.id));
+      setAvailableItems(prev => [...prev, ...available]);
+      setAvailableOffset(prev => prev + pageSize);
+      setHasMoreAvailable(items && items.length === pageSize);
+    } catch (err) {
+      console.error('Error loading more items:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Search available items from server (only when user types)
+  const searchAvailableItems = async (searchText) => {
+    try {
+      setSearchLoading(true);
+      const search = searchText.toLowerCase().trim();
+
+      // Build query to search across multiple fields
+      let query = supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category, tags')
+        .order('item_name')
+        .limit(100); // Limit results to 100 for performance
+
+      // Search using OR conditions
+      query = query.or(
+        `sku.ilike.%${search}%,` +
+        `item_code.ilike.%${search}%,` +
+        `item_name.ilike.%${search}%,` +
+        `internal_product_code.ilike.%${search}%,` +
+        `category.ilike.%${search}%`
+      );
+
+      const { data: searchResults, error } = await query;
+
+      if (error) throw error;
+
+      // Filter out items already in session
+      const available = (searchResults || []).filter(item => !selectedItemIds.has(item.id));
+      setAvailableItems(available);
+    } catch (err) {
+      console.error('Error searching items:', err);
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -2578,34 +2718,66 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       const group = itemGroups.find(g => g.id === groupId);
       if (!group || !group.item_group_items) return;
 
-      // Get item IDs from the group that are not already in the session
       const groupItemIds = group.item_group_items.map(gi => gi.item_id);
-      const currentSelectedIds = new Set(selectedItems.map(item => item.id));
-      const newItemIds = groupItemIds.filter(id => !currentSelectedIds.has(id));
 
-      if (newItemIds.length === 0) {
-        alert('All items from this group are already in the session.');
+      if (groupItemIds.length === 0) {
+        alert('This group has no items.');
         return;
       }
 
-      // Insert items to session
-      const itemsToAdd = newItemIds.map(itemId => ({
+      // Fetch fresh from database to get accurate list of items already in session
+      const { data: currentSessionItems, error: sessionError } = await supabase
+        .from('session_items')
+        .select('item_id')
+        .eq('session_id', session.id);
+
+      if (sessionError) throw sessionError;
+
+      // Skip items that are already in the session (only add new ones)
+      const currentSelectedIds = new Set(currentSessionItems.map(item => item.item_id));
+      const newItemIds = groupItemIds.filter(id => !currentSelectedIds.has(id));
+
+      if (newItemIds.length === 0) {
+        alert(`All ${groupItemIds.length} items from "${group.name}" are already in the session.`);
+        return;
+      }
+
+      // Fetch full item details from database for NEW items only
+      const { data: itemsToAdd, error: fetchError } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category, tags')
+        .in('id', newItemIds);
+
+      if (fetchError) throw fetchError;
+
+      if (!itemsToAdd || itemsToAdd.length === 0) {
+        alert('Could not fetch items from this group.');
+        return;
+      }
+
+      // Insert only new items to session
+      const itemsToInsert = itemsToAdd.map(item => ({
         session_id: session.id,
-        item_id: itemId
+        item_id: item.id
       }));
 
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('session_items')
-        .insert(itemsToAdd);
+        .insert(itemsToInsert);
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
-      // Update state
-      const itemsToMove = availableItems.filter(item => newItemIds.includes(item.id));
-      setSelectedItems(prev => [...prev, ...itemsToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      // Update state: remove from available, add to selected
       setAvailableItems(prev => prev.filter(item => !newItemIds.includes(item.id)));
+      setSelectedItems(prev => [...prev, ...itemsToAdd].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      setSelectedItemIds(prev => new Set([...prev, ...newItemIds]));
 
-      alert(`Successfully added ${newItemIds.length} items from "${group.name}" to the session.`);
+      const skippedCount = groupItemIds.length - newItemIds.length;
+      const message = skippedCount > 0
+        ? `Successfully added ${itemsToAdd.length} items from "${group.name}".\n${skippedCount} items were skipped (already in session).`
+        : `Successfully added ${itemsToAdd.length} items from "${group.name}" to the session.`;
+
+      alert(message);
     } catch (err) {
       console.error('Error adding group:', err);
       alert('Error adding items from group: ' + err.message);
@@ -2628,6 +2800,7 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       if (itemToMove) {
         setAvailableItems(prev => prev.filter(item => item.id !== itemId));
         setSelectedItems(prev => [...prev, itemToMove]);
+        setSelectedItemIds(prev => new Set([...prev, itemId]));
       }
     } catch (err) {
       console.error('Error selecting item:', err);
@@ -2651,7 +2824,20 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       const itemToMove = selectedItems.find(item => item.id === itemId);
       if (itemToMove) {
         setSelectedItems(prev => prev.filter(item => item.id !== itemId));
-        setAvailableItems(prev => [...prev, itemToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+        setSelectedItemIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+        // Add back to available items if it matches current search/view
+        if (!searchTerm.trim() ||
+            itemToMove.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            itemToMove.item_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            itemToMove.item_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            itemToMove.internal_product_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            itemToMove.category?.toLowerCase().includes(searchTerm.toLowerCase())) {
+          setAvailableItems(prev => [...prev, itemToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+        }
       }
     } catch (err) {
       console.error('Error deselecting item:', err);
@@ -2661,11 +2847,11 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
   };
 
   const handleAddAllFiltered = async () => {
-    if (filteredAvailableItems.length === 0) return;
+    if (availableItems.length === 0) return;
 
     try {
       setAssigning(true);
-      const itemsToAdd = filteredAvailableItems.map(item => ({
+      const itemsToAdd = availableItems.map(item => ({
         session_id: session.id,
         item_id: item.id
       }));
@@ -2677,9 +2863,10 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       if (error) throw error;
 
       // Update state incrementally instead of full re-fetch
-      const itemsToMove = filteredAvailableItems;
+      const itemsToMove = availableItems;
       setSelectedItems(prev => [...prev, ...itemsToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
-      setAvailableItems(prev => prev.filter(item => !itemsToMove.some(moved => moved.id === item.id)));
+      setSelectedItemIds(prev => new Set([...prev, ...itemsToMove.map(i => i.id)]));
+      setAvailableItems([]);
 
       // Clear search term after adding all
       setSearchTerm('');
@@ -2690,14 +2877,8 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
     }
   };
 
-  const filteredAvailableItems = availableItems.filter(item =>
-    item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.item_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.internal_product_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.tags && item.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
-  );
+  // availableItems is already filtered (from server-side search or initial load)
+  // No need for client-side filtering anymore
 
   const filteredGroups = itemGroups.filter(group =>
     !searchTerm.trim() ||
@@ -2764,42 +2945,77 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
                   />
                   <button
                     onClick={handleAddAllFiltered}
-                    disabled={assigning || filteredAvailableItems.length === 0}
+                    disabled={assigning || availableItems.length === 0}
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                   >
                     <Plus className="h-4 w-4" />
-                    <span>Add All ({filteredAvailableItems.length})</span>
+                    <span>Add All ({availableItems.length})</span>
                   </button>
                 </div>
                 <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {filteredAvailableItems.length === 0 ? (
+                  {searchLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="spinner-small"></div>
+                      <span className="ml-2 text-gray-600">Searching items...</span>
+                    </div>
+                  ) : availableItems.length === 0 ? (
                     <p className="text-gray-500 text-sm">
                       {searchTerm ? 'No items match your search' : 'No available items'}
                     </p>
                   ) : (
-                    filteredAvailableItems.map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900">{item.item_name}</p>
-                          <p className="text-sm text-gray-500">
-                            <Hash className="h-4 w-4 inline mr-1" />
-                            {item.sku}
-                            <Hash className="h-4 w-4 inline mr-1 ml-2" />
-                            {item.item_code}
-                            <Folder className="h-4 w-4 inline mr-1 ml-2" />
-                            {item.category}
-                          </p>
+                    <>
+                      {availableItems.map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900">{item.item_name}</p>
+                            <p className="text-sm text-gray-500">
+                              <Hash className="h-4 w-4 inline mr-1" />
+                              {item.sku}
+                              <Hash className="h-4 w-4 inline mr-1 ml-2" />
+                              {item.item_code}
+                              <Folder className="h-4 w-4 inline mr-1 ml-2" />
+                              {item.category}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleSelectItem(item.id)}
+                            disabled={assigning}
+                            className="text-green-600 hover:text-green-800 disabled:opacity-50"
+                            title="Select Item"
+                          >
+                            <Plus className="h-5 w-5" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleSelectItem(item.id)}
-                          disabled={assigning}
-                          className="text-green-600 hover:text-green-800 disabled:opacity-50"
-                          title="Select Item"
-                        >
-                          <Plus className="h-5 w-5" />
-                        </button>
-                      </div>
-                    ))
+                      ))}
+
+                      {/* Infinite scroll trigger */}
+                      {!searchTerm.trim() && hasMoreAvailable && (
+                        <div ref={loadMoreRef} className="flex items-center justify-center py-3">
+                          {loadingMore ? (
+                            <>
+                              <div className="spinner-small"></div>
+                              <span className="ml-2 text-gray-500 text-sm">Loading more...</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-400 text-xs">Scroll for more</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* End of list */}
+                      {!searchTerm.trim() && !hasMoreAvailable && availableItems.length > 0 && (
+                        <p className="text-center text-gray-400 text-xs py-2">
+                          No more items
+                        </p>
+                      )}
+
+                      {/* Search result info */}
+                      {searchTerm.trim() && availableItems.length === 100 && (
+                        <p className="text-center text-blue-600 text-xs py-2">
+                          Showing first 100 results. Refine search for more specific results.
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
