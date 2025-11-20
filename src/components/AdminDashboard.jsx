@@ -2578,34 +2578,72 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       const group = itemGroups.find(g => g.id === groupId);
       if (!group || !group.item_group_items) return;
 
-      // Get item IDs from the group that are not already in the session
       const groupItemIds = group.item_group_items.map(gi => gi.item_id);
-      const currentSelectedIds = new Set(selectedItems.map(item => item.id));
-      const newItemIds = groupItemIds.filter(id => !currentSelectedIds.has(id));
 
-      if (newItemIds.length === 0) {
-        alert('All items from this group are already in the session.');
+      if (groupItemIds.length === 0) {
+        alert('This group has no items.');
         return;
       }
 
-      // Insert items to session
-      const itemsToAdd = newItemIds.map(itemId => ({
+      // Option to replace: delete existing items from this group first
+      const currentSelectedIds = new Set(selectedItems.map(item => item.id));
+      const existingItemsFromGroup = groupItemIds.filter(id => currentSelectedIds.has(id));
+
+      if (existingItemsFromGroup.length > 0) {
+        const confirmReplace = window.confirm(
+          `${existingItemsFromGroup.length} items from "${group.name}" are already in the session.\n\n` +
+          `Do you want to replace them? (This will remove and re-add all ${groupItemIds.length} items from this group)`
+        );
+
+        if (!confirmReplace) {
+          return;
+        }
+
+        // Delete existing items from this group
+        const { error: deleteError } = await supabase
+          .from('session_items')
+          .delete()
+          .eq('session_id', session.id)
+          .in('item_id', existingItemsFromGroup);
+
+        if (deleteError) throw deleteError;
+      }
+
+      // Fetch full item details from database (not from availableItems which may be incomplete)
+      const { data: itemsToAdd, error: fetchError } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category, tags')
+        .in('id', groupItemIds);
+
+      if (fetchError) throw fetchError;
+
+      if (!itemsToAdd || itemsToAdd.length === 0) {
+        alert('Could not fetch items from this group.');
+        return;
+      }
+
+      // Insert all items to session
+      const itemsToInsert = itemsToAdd.map(item => ({
         session_id: session.id,
-        item_id: itemId
+        item_id: item.id
       }));
 
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('session_items')
-        .insert(itemsToAdd);
+        .insert(itemsToInsert);
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
-      // Update state
-      const itemsToMove = availableItems.filter(item => newItemIds.includes(item.id));
-      setSelectedItems(prev => [...prev, ...itemsToMove].sort((a, b) => a.item_name.localeCompare(b.item_name)));
-      setAvailableItems(prev => prev.filter(item => !newItemIds.includes(item.id)));
+      // Update state: remove from available, add to selected
+      setAvailableItems(prev => prev.filter(item => !groupItemIds.includes(item.id)));
 
-      alert(`Successfully added ${newItemIds.length} items from "${group.name}" to the session.`);
+      // For selected items: remove old ones from this group, add all fresh
+      setSelectedItems(prev => {
+        const filtered = prev.filter(item => !groupItemIds.includes(item.id));
+        return [...filtered, ...itemsToAdd].sort((a, b) => a.item_name.localeCompare(b.item_name));
+      });
+
+      alert(`Successfully added ${itemsToAdd.length} items from "${group.name}" to the session.`);
     } catch (err) {
       console.error('Error adding group:', err);
       alert('Error adding items from group: ' + err.message);
