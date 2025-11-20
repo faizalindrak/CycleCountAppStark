@@ -3024,18 +3024,35 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
   const [groupItems, setGroupItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('available');
   const [groupItemIds, setGroupItemIds] = useState(new Set());
+  const [hasMoreAvailable, setHasMoreAvailable] = useState(true);
+  const [availableOffset, setAvailableOffset] = useState(0);
+  const loadMoreRef = React.useRef(null);
 
   useEffect(() => {
     fetchGroupItems();
   }, [group]);
 
+  // Load initial available items when group items are loaded
+  useEffect(() => {
+    if (!loading && groupItemIds.size >= 0 && !searchTerm.trim() && availableItems.length === 0) {
+      loadInitialAvailableItems();
+    }
+  }, [loading]);
+
   // Debounced search for available items
   useEffect(() => {
     if (!searchTerm.trim()) {
-      setAvailableItems([]);
+      // Reset to initial state when search is cleared
+      if (availableOffset > 0) {
+        setAvailableItems([]);
+        setAvailableOffset(0);
+        setHasMoreAvailable(true);
+        loadInitialAvailableItems();
+      }
       return;
     }
 
@@ -3044,7 +3061,30 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, groupItemIds]);
+  }, [searchTerm]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const currentRef = loadMoreRef.current;
+    if (!currentRef || searchTerm.trim()) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreAvailable && !loadingMore) {
+          loadMoreAvailableItems();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(currentRef);
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMoreAvailable, loadingMore, searchTerm, availableOffset]);
 
   // Fetch only group items (not all items - too heavy)
   const fetchGroupItems = async () => {
@@ -3096,6 +3136,55 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
       alert('Error loading items: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load initial available items (first batch)
+  const loadInitialAvailableItems = async () => {
+    try {
+      const pageSize = 50;
+      const { data: items, error } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category')
+        .order('item_name')
+        .range(0, pageSize - 1);
+
+      if (error) throw error;
+
+      // Filter out items already in group
+      const available = (items || []).filter(item => !groupItemIds.has(item.id));
+      setAvailableItems(available);
+      setAvailableOffset(pageSize);
+      setHasMoreAvailable(items && items.length === pageSize);
+    } catch (err) {
+      console.error('Error loading initial items:', err);
+      alert('Error loading items: ' + err.message);
+    }
+  };
+
+  // Load more available items (infinite scroll)
+  const loadMoreAvailableItems = async () => {
+    try {
+      setLoadingMore(true);
+      const pageSize = 50;
+      const { data: items, error } = await supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category')
+        .order('item_name')
+        .range(availableOffset, availableOffset + pageSize - 1);
+
+      if (error) throw error;
+
+      // Filter out items already in group
+      const available = (items || []).filter(item => !groupItemIds.has(item.id));
+      setAvailableItems(prev => [...prev, ...available]);
+      setAvailableOffset(prev => prev + pageSize);
+      setHasMoreAvailable(items && items.length === pageSize);
+    } catch (err) {
+      console.error('Error loading more items:', err);
+      alert('Error loading more items: ' + err.message);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -3278,25 +3367,24 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
                       <div className="spinner-small"></div>
                       <span className="ml-2 text-gray-600">Searching items...</span>
                     </div>
-                  ) : !searchTerm.trim() ? (
-                    <div className="text-center py-12">
-                      <Search className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500 font-medium">Type to search items</p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        Search by SKU, item code, name, internal code, or category
-                      </p>
-                    </div>
-                  ) : availableItems.length === 0 ? (
+                  ) : availableItems.length === 0 && searchTerm.trim() ? (
                     <p className="text-center text-gray-500 py-8">
                       No items found matching "{searchTerm}"
                     </p>
+                  ) : availableItems.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">
+                      No available items to add.
+                    </p>
                   ) : (
                     <>
-                      {availableItems.length === 100 && (
+                      {/* Search info banner */}
+                      {searchTerm.trim() && availableItems.length === 100 && (
                         <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
                           Showing first 100 results. Refine your search for more specific results.
                         </div>
                       )}
+
+                      {/* Items list */}
                       {availableItems.map(item => (
                         <div key={item.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50">
                           <div>
@@ -3314,6 +3402,27 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
                           </button>
                         </div>
                       ))}
+
+                      {/* Infinite scroll trigger */}
+                      {!searchTerm.trim() && hasMoreAvailable && (
+                        <div ref={loadMoreRef} className="flex items-center justify-center py-4">
+                          {loadingMore ? (
+                            <>
+                              <div className="spinner-small"></div>
+                              <span className="ml-2 text-gray-600">Loading more items...</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-400 text-sm">Scroll for more items</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* End of list */}
+                      {!searchTerm.trim() && !hasMoreAvailable && availableItems.length > 0 && (
+                        <p className="text-center text-gray-400 text-sm py-4">
+                          No more items to load
+                        </p>
+                      )}
                     </>
                   )}
                 </div>
