@@ -2725,8 +2725,16 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
         return;
       }
 
+      // Fetch fresh from database to get accurate list of items already in session
+      const { data: currentSessionItems, error: sessionError } = await supabase
+        .from('session_items')
+        .select('item_id')
+        .eq('session_id', session.id);
+
+      if (sessionError) throw sessionError;
+
       // Skip items that are already in the session (only add new ones)
-      const currentSelectedIds = new Set(selectedItems.map(item => item.id));
+      const currentSelectedIds = new Set(currentSessionItems.map(item => item.item_id));
       const newItemIds = groupItemIds.filter(id => !currentSelectedIds.has(id));
 
       if (newItemIds.length === 0) {
