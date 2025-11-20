@@ -3108,7 +3108,7 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
       const item = availableItems.find(i => i.id === itemId);
       setAvailableItems(prev => prev.filter(i => i.id !== itemId));
       setGroupItems(prev => [...prev, item]);
-      onSave();
+      // onSave() will be called when modal closes, not on every add
     } catch (err) {
       console.error('Error adding item to group:', err);
       alert('Error adding item: ' + err.message);
@@ -3129,7 +3129,7 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
       const item = groupItems.find(i => i.id === itemId);
       setGroupItems(prev => prev.filter(i => i.id !== itemId));
       setAvailableItems(prev => [...prev, item].sort((a, b) => a.item_name.localeCompare(b.item_name)));
-      onSave();
+      // onSave() will be called when modal closes, not on every remove
     } catch (err) {
       console.error('Error removing item from group:', err);
       alert('Error removing item: ' + err.message);
