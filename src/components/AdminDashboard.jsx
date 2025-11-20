@@ -416,7 +416,46 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
   const [selectedSessionForAssignment, setSelectedSessionForAssignment] = useState(null);
   const [selectedSessionForItems, setSelectedSessionForItems] = useState(null);
 
-  // Data is now passed as props from parent component
+  // Refresh only sessions data (not all dashboard data)
+  const refreshSessions = async () => {
+    try {
+      const { data: sessionsData, error } = await supabase
+        .from('sessions')
+        .select(`*, session_users (user_id)`)
+        .order('created_date', { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch user profiles for assigned users
+      if (sessionsData) {
+        const userIds = [...new Set(sessionsData.flatMap(session =>
+          session.session_users?.map(su => su.user_id) || []
+        ))];
+
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, name, username')
+            .in('id', userIds);
+
+          const profileMap = {};
+          profiles?.forEach(profile => {
+            profileMap[profile.id] = profile;
+          });
+
+          sessionsData.forEach(session => {
+            session.session_users?.forEach(su => {
+              su.profiles = profileMap[su.user_id];
+            });
+          });
+        }
+      }
+
+      setSessions(sessionsData || []);
+    } catch (err) {
+      console.error('Error refreshing sessions:', err);
+    }
+  };
 
   const handleCreateSession = () => {
     setEditingSession(null);
@@ -441,7 +480,7 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
 
       if (error) throw error;
 
-      await onDataChange();
+      await refreshSessions(); // Only refresh sessions, not all data
     } catch (err) {
       console.error('Error deleting session:', err);
     }
@@ -641,7 +680,7 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
         <SessionEditor
           session={editingSession}
           onClose={() => setShowEditor(false)}
-          onSave={onDataChange}
+          onSave={refreshSessions} // Only refresh sessions, not all data
         />
       )}
 
@@ -651,10 +690,9 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
           onClose={() => {
             setShowUserAssignment(false);
             setSelectedSessionForAssignment(null);
-            // Refresh parent data when modal is closed to show updated counts
-            onDataChange();
+            refreshSessions(); // Only refresh sessions, not all data
           }}
-          onSave={() => fetchAllData()}
+          onSave={refreshSessions} // Only refresh sessions, not all data
         />
       )}
 
@@ -664,11 +702,10 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
           onClose={() => {
             setShowItemSelection(false);
             setSelectedSessionForItems(null);
-            // Refresh parent data when modal is closed to show updated counts
-            onDataChange();
+            refreshSessions(); // Only refresh sessions, not all data
           }}
-          onSave={onDataChange}
-          onDataChange={onDataChange}
+          onSave={refreshSessions} // Only refresh sessions, not all data
+          onDataChange={refreshSessions} // Only refresh sessions, not all data
         />
       )}
     </div>
