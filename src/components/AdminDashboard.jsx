@@ -3023,40 +3023,33 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
   const [availableItems, setAvailableItems] = useState([]);
   const [groupItems, setGroupItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('available');
+  const [groupItemIds, setGroupItemIds] = useState(new Set());
 
   useEffect(() => {
-    fetchItems();
+    fetchGroupItems();
   }, [group]);
 
-  const fetchItems = async () => {
+  // Debounced search for available items
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setAvailableItems([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      searchAvailableItems(searchTerm);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, groupItemIds]);
+
+  // Fetch only group items (not all items - too heavy)
+  const fetchGroupItems = async () => {
     try {
       setLoading(true);
-
-      // Fetch all items with pagination to handle large datasets
-      let allItems = [];
-      let hasMoreItems = true;
-      let itemsStart = 0;
-      const itemsPageSize = 1000;
-
-      while (hasMoreItems) {
-        const { data: itemsChunk, error: itemsChunkError } = await supabase
-          .from('items')
-          .select('id, sku, item_code, item_name, internal_product_code, category')
-          .order('item_name')
-          .range(itemsStart, itemsStart + itemsPageSize - 1);
-
-        if (itemsChunkError) throw itemsChunkError;
-
-        if (itemsChunk && itemsChunk.length > 0) {
-          allItems = [...allItems, ...itemsChunk];
-          itemsStart += itemsPageSize;
-          hasMoreItems = itemsChunk.length === itemsPageSize;
-        } else {
-          hasMoreItems = false;
-        }
-      }
 
       // Fetch items in this group with pagination
       let groupItemsData = [];
@@ -3082,17 +3075,64 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
         }
       }
 
-      const groupItemIds = new Set(groupItemsData.map(gi => gi.item_id));
-      const available = allItems.filter(item => !groupItemIds.has(item.id));
-      const inGroup = allItems.filter(item => groupItemIds.has(item.id));
+      const itemIds = new Set(groupItemsData.map(gi => gi.item_id));
+      setGroupItemIds(itemIds);
 
-      setAvailableItems(available);
-      setGroupItems(inGroup);
+      // Fetch full item details for items in group
+      if (itemIds.size > 0) {
+        const { data: itemsInGroup, error: itemsError } = await supabase
+          .from('items')
+          .select('id, sku, item_code, item_name, internal_product_code, category')
+          .in('id', Array.from(itemIds))
+          .order('item_name');
+
+        if (itemsError) throw itemsError;
+        setGroupItems(itemsInGroup || []);
+      } else {
+        setGroupItems([]);
+      }
     } catch (err) {
-      console.error('Error fetching items:', err);
+      console.error('Error fetching group items:', err);
       alert('Error loading items: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Search available items from server (only when user types)
+  const searchAvailableItems = async (searchText) => {
+    try {
+      setSearchLoading(true);
+      const search = searchText.toLowerCase().trim();
+
+      // Build query to search across multiple fields
+      let query = supabase
+        .from('items')
+        .select('id, sku, item_code, item_name, internal_product_code, category')
+        .order('item_name')
+        .limit(100); // Limit results to 100 for performance
+
+      // Search using OR conditions
+      query = query.or(
+        `sku.ilike.%${search}%,` +
+        `item_code.ilike.%${search}%,` +
+        `item_name.ilike.%${search}%,` +
+        `internal_product_code.ilike.%${search}%,` +
+        `category.ilike.%${search}%`
+      );
+
+      const { data: searchResults, error } = await query;
+
+      if (error) throw error;
+
+      // Filter out items already in group
+      const available = (searchResults || []).filter(item => !groupItemIds.has(item.id));
+      setAvailableItems(available);
+    } catch (err) {
+      console.error('Error searching items:', err);
+      alert('Error searching items: ' + err.message);
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -3107,7 +3147,8 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
       // Move item from available to group
       const item = availableItems.find(i => i.id === itemId);
       setAvailableItems(prev => prev.filter(i => i.id !== itemId));
-      setGroupItems(prev => [...prev, item]);
+      setGroupItems(prev => [...prev, item].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      setGroupItemIds(prev => new Set([...prev, itemId]));
       // onSave() will be called when modal closes, not on every add
     } catch (err) {
       console.error('Error adding item to group:', err);
@@ -3125,10 +3166,29 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
 
       if (error) throw error;
 
-      // Move item from group to available
+      // Move item from group to available (if search is active, add back to available list)
       const item = groupItems.find(i => i.id === itemId);
       setGroupItems(prev => prev.filter(i => i.id !== itemId));
-      setAvailableItems(prev => [...prev, item].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+      setGroupItemIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(itemId);
+        return newSet;
+      });
+
+      // If there's a search term and removed item matches, add it to available items
+      if (searchTerm.trim() && item) {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch =
+          item.sku?.toLowerCase().includes(search) ||
+          item.item_code?.toLowerCase().includes(search) ||
+          item.item_name?.toLowerCase().includes(search) ||
+          item.internal_product_code?.toLowerCase().includes(search) ||
+          item.category?.toLowerCase().includes(search);
+
+        if (matchesSearch) {
+          setAvailableItems(prev => [...prev, item].sort((a, b) => a.item_name.localeCompare(b.item_name)));
+        }
+      }
       // onSave() will be called when modal closes, not on every remove
     } catch (err) {
       console.error('Error removing item from group:', err);
@@ -3136,18 +3196,7 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
     }
   };
 
-  const filteredAvailableItems = availableItems.filter(item => {
-    if (!searchTerm.trim()) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      item.sku?.toLowerCase().includes(search) ||
-      item.item_code?.toLowerCase().includes(search) ||
-      item.item_name?.toLowerCase().includes(search) ||
-      item.internal_product_code?.toLowerCase().includes(search) ||
-      item.category?.toLowerCase().includes(search)
-    );
-  });
-
+  // Filter group items on client side (already loaded)
   const filteredGroupItems = groupItems.filter(item => {
     if (!searchTerm.trim()) return true;
     const search = searchTerm.toLowerCase();
@@ -3184,7 +3233,7 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Available Items ({filteredAvailableItems.length})
+              Available Items {searchTerm.trim() ? `(${availableItems.length})` : ''}
             </button>
             <button
               onClick={() => setActiveTab('in-group')}
@@ -3224,28 +3273,48 @@ const GroupItemsModal = React.memo(({ group, onClose, onSave }) => {
             <div>
               {activeTab === 'available' ? (
                 <div className="space-y-2">
-                  {filteredAvailableItems.length === 0 ? (
+                  {searchLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="spinner-small"></div>
+                      <span className="ml-2 text-gray-600">Searching items...</span>
+                    </div>
+                  ) : !searchTerm.trim() ? (
+                    <div className="text-center py-12">
+                      <Search className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">Type to search items</p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        Search by SKU, item code, name, internal code, or category
+                      </p>
+                    </div>
+                  ) : availableItems.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">
-                      {searchTerm ? 'No items found matching your search.' : 'All items are already in this group.'}
+                      No items found matching "{searchTerm}"
                     </p>
                   ) : (
-                    filteredAvailableItems.map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50">
-                        <div>
-                          <p className="font-medium text-gray-900">{item.item_name}</p>
-                          <p className="text-sm text-gray-500">
-                            SKU: {item.sku} | Code: {item.item_code} | Category: {item.category}
-                          </p>
+                    <>
+                      {availableItems.length === 100 && (
+                        <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
+                          Showing first 100 results. Refine your search for more specific results.
                         </div>
-                        <button
-                          onClick={() => handleAddItem(item.id)}
-                          className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 flex items-center space-x-1"
-                        >
-                          <Plus className="h-4 w-4" />
-                          <span>Add</span>
-                        </button>
-                      </div>
-                    ))
+                      )}
+                      {availableItems.map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50">
+                          <div>
+                            <p className="font-medium text-gray-900">{item.item_name}</p>
+                            <p className="text-sm text-gray-500">
+                              SKU: {item.sku} | Code: {item.item_code} | Category: {item.category}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleAddItem(item.id)}
+                            className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 flex items-center space-x-1"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Add</span>
+                          </button>
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
               ) : (
