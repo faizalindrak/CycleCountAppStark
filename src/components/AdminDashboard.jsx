@@ -608,9 +608,26 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
             <li key={session.id} className="px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    {session.name}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {session.name}
+                    </h3>
+                    {session.is_recurring_template && (
+                      <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-semibold rounded-full">
+                        RECURRING TEMPLATE
+                      </span>
+                    )}
+                    {session.is_scheduled && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
+                        SCHEDULED
+                      </span>
+                    )}
+                    {session.parent_session_id && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
+                        AUTO-GENERATED
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                     <span className="flex items-center">
                       <ClipboardList className="h-4 w-4 mr-1" />
@@ -622,16 +639,35 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
                     </span>
                     <span className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1" />
-                      {new Date(session.created_date).toLocaleDateString()}
+                      {session.scheduled_date ? new Date(session.scheduled_date).toLocaleDateString() : new Date(session.created_date).toLocaleDateString()}
                     </span>
+                    {session.valid_from && session.valid_until && (
+                      <span className="flex items-center">
+                        <Clock className="h-4 w-4 mr-1" />
+                        {new Date(session.valid_from).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})} - {new Date(session.valid_until).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})}
+                      </span>
+                    )}
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       session.status === 'active' ? 'bg-green-100 text-green-800' :
                       session.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
+                      session.status === 'closed' ? 'bg-red-100 text-red-800' :
+                      session.status === 'scheduled' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
                     }`}>
                       {session.status}
                     </span>
                   </div>
+                  {session.recurring_config && (
+                    <div className="mt-2 text-xs text-gray-600">
+                      <strong>Recurrence:</strong> {session.recurring_config.type}
+                      {session.recurring_config.type === 'weekly' && session.recurring_config.days && (
+                        <span> (Days: {session.recurring_config.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')})</span>
+                      )}
+                      {session.recurring_config.type === 'monthly' && session.recurring_config.dates && (
+                        <span> (Dates: {session.recurring_config.dates.join(', ')})</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -3527,7 +3563,17 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: session?.name || '',
-    status: session?.status || 'draft'
+    status: session?.status || 'draft',
+    sessionType: session?.is_recurring_template ? 'recurring' : session?.is_scheduled ? 'scheduled' : 'regular',
+    // Time fields
+    validFromTime: session?.valid_from ? new Date(session.valid_from).toTimeString().slice(0, 5) : '08:00',
+    validUntilTime: session?.valid_until ? new Date(session.valid_until).toTimeString().slice(0, 5) : '17:00',
+    // Scheduled session
+    scheduledDate: session?.scheduled_date || '',
+    // Recurring config
+    recurrenceType: session?.recurring_config?.type || 'daily',
+    weeklyDays: session?.recurring_config?.days || [],
+    monthlyDates: session?.recurring_config?.dates || []
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -3543,23 +3589,86 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
         status: formData.status
       };
 
+      // Add recurring/scheduled fields
+      if (formData.sessionType === 'recurring') {
+        sessionData.is_recurring_template = true;
+        sessionData.is_scheduled = false;
+
+        // Build recurring config
+        const config = { type: formData.recurrenceType };
+        if (formData.recurrenceType === 'weekly') {
+          config.days = formData.weeklyDays;
+        } else if (formData.recurrenceType === 'monthly') {
+          config.dates = formData.monthlyDates;
+        }
+        sessionData.recurring_config = config;
+
+        // Set time windows (use today as placeholder date)
+        const today = new Date().toISOString().split('T')[0];
+        sessionData.valid_from = `${today}T${formData.validFromTime}:00`;
+        sessionData.valid_until = `${today}T${formData.validUntilTime}:00`;
+
+      } else if (formData.sessionType === 'scheduled') {
+        sessionData.is_scheduled = true;
+        sessionData.is_recurring_template = false;
+        sessionData.scheduled_date = formData.scheduledDate;
+
+        // Set full datetime for scheduled session
+        sessionData.valid_from = `${formData.scheduledDate}T${formData.validFromTime}:00`;
+        sessionData.valid_until = `${formData.scheduledDate}T${formData.validUntilTime}:00`;
+
+      } else {
+        // Regular session
+        sessionData.is_recurring_template = false;
+        sessionData.is_scheduled = false;
+      }
+
       if (session) {
         // Update
-        const { error } = await supabase
+        const { error: updateError } = await supabase
           .from('sessions')
           .update(sessionData)
           .eq('id', session.id);
-        if (error) throw error;
+
+        if (updateError) throw updateError;
+
+        // If updating a recurring template, update future sessions
+        if (session.is_recurring_template && formData.sessionType === 'recurring') {
+          const { error: updateFutureError } = await supabase
+            .rpc('update_future_sessions_from_template', {
+              p_master_session_id: session.id
+            });
+
+          if (updateFutureError) {
+            console.warn('Error updating future sessions:', updateFutureError);
+          }
+        }
       } else {
         // Create
-        const { error } = await supabase
+        const { data: newSession, error: insertError } = await supabase
           .from('sessions')
           .insert([{
             ...sessionData,
             type: 'inventory',
             created_by: user.id
-          }]);
-        if (error) throw error;
+          }])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        // If recurring template, generate sessions for next 30 days
+        if (formData.sessionType === 'recurring') {
+          const { error: generateError } = await supabase
+            .rpc('generate_recurring_sessions', {
+              p_master_session_id: newSession.id,
+              p_days_ahead: 30
+            });
+
+          if (generateError) {
+            console.warn('Error generating recurring sessions:', generateError);
+          }
+        }
       }
 
       onSave();
@@ -3573,14 +3682,42 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
+  const handleWeeklyDayToggle = (day) => {
+    setFormData(prev => ({
+      ...prev,
+      weeklyDays: prev.weeklyDays.includes(day)
+        ? prev.weeklyDays.filter(d => d !== day)
+        : [...prev.weeklyDays, day].sort()
+    }));
+  };
+
+  const handleMonthlyDateToggle = (date) => {
+    setFormData(prev => ({
+      ...prev,
+      monthlyDates: prev.monthlyDates.includes(date)
+        ? prev.monthlyDates.filter(d => d !== date)
+        : [...prev.monthlyDates, date].sort((a, b) => a - b)
+    }));
+  };
+
+  const weekDays = [
+    { value: 0, label: 'Sun' },
+    { value: 1, label: 'Mon' },
+    { value: 2, label: 'Tue' },
+    { value: 3, label: 'Wed' },
+    { value: 4, label: 'Thu' },
+    { value: 5, label: 'Fri' },
+    { value: 6, label: 'Sat' }
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-md flex flex-col">
-        <div className="p-4 border-b flex justify-between items-center">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg w-full max-w-2xl flex flex-col my-8">
+        <div className="p-4 border-b flex justify-between items-center sticky top-0 bg-white rounded-t-lg z-10">
           <h3 className="text-xl font-bold">
             {session ? 'Edit Session' : 'Create New Session'}
           </h3>
@@ -3588,7 +3725,7 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
             <X className="h-6 w-6" />
           </button>
         </div>
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto">
           {error && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
               {error}
@@ -3610,6 +3747,186 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
               />
             </div>
 
+            {/* Session Type Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Session Type *
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="sessionType"
+                    value="regular"
+                    checked={formData.sessionType === 'regular'}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Regular Session (One-time, immediate)</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="sessionType"
+                    value="scheduled"
+                    checked={formData.sessionType === 'scheduled'}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Scheduled Session (One-time, future date)</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="sessionType"
+                    value="recurring"
+                    checked={formData.sessionType === 'recurring'}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Recurring Template (Auto-generate daily/weekly/monthly)</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Scheduled Session: Date */}
+            {formData.sessionType === 'scheduled' && (
+              <div className="p-4 bg-blue-50 rounded-lg space-y-3">
+                <h4 className="font-medium text-sm text-blue-900">Scheduled Session Settings</h4>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Scheduled Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="scheduledDate"
+                    value={formData.scheduledDate}
+                    onChange={handleChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Recurring Template: Recurrence Settings */}
+            {formData.sessionType === 'recurring' && (
+              <div className="p-4 bg-purple-50 rounded-lg space-y-3">
+                <h4 className="font-medium text-sm text-purple-900">Recurring Template Settings</h4>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Recurrence Pattern *
+                  </label>
+                  <select
+                    name="recurrenceType"
+                    value={formData.recurrenceType}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+
+                {/* Weekly: Select Days */}
+                {formData.recurrenceType === 'weekly' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Days *
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {weekDays.map(day => (
+                        <button
+                          key={day.value}
+                          type="button"
+                          onClick={() => handleWeeklyDayToggle(day.value)}
+                          className={`px-3 py-2 rounded-md text-sm font-medium ${
+                            formData.weeklyDays.includes(day.value)
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      ))}
+                    </div>
+                    {formData.weeklyDays.length === 0 && (
+                      <p className="text-xs text-red-600 mt-1">Please select at least one day</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Monthly: Select Dates */}
+                {formData.recurrenceType === 'monthly' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Dates *
+                    </label>
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(date => (
+                        <button
+                          key={date}
+                          type="button"
+                          onClick={() => handleMonthlyDateToggle(date)}
+                          className={`px-2 py-2 rounded text-sm font-medium ${
+                            formData.monthlyDates.includes(date)
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {date}
+                        </button>
+                      ))}
+                    </div>
+                    {formData.monthlyDates.length === 0 && (
+                      <p className="text-xs text-red-600 mt-1">Please select at least one date</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Time Window (for scheduled and recurring) */}
+            {(formData.sessionType === 'scheduled' || formData.sessionType === 'recurring') && (
+              <div className="p-4 bg-green-50 rounded-lg space-y-3">
+                <h4 className="font-medium text-sm text-green-900">Time Window</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Valid From (Time) *
+                    </label>
+                    <input
+                      type="time"
+                      name="validFromTime"
+                      value={formData.validFromTime}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Valid Until (Time) *
+                    </label>
+                    <input
+                      type="time"
+                      name="validUntilTime"
+                      value={formData.validUntilTime}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600">
+                  Sessions can only be filled between these times. Sessions will auto-close after the end time.
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status *
@@ -3625,11 +3942,15 @@ const SessionEditor = React.memo(({ session, onClose, onSave }) => {
                 <option value="active">Active</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
+                <option value="closed">Closed</option>
               </select>
             </div>
 
             <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
               <p><strong>Note:</strong> User assignments and item selections for this session are managed separately after creation.</p>
+              {formData.sessionType === 'recurring' && (
+                <p className="mt-2"><strong>Recurring:</strong> Creating this template will auto-generate sessions for the next 30 days based on your schedule.</p>
+              )}
             </div>
 
             <div className="flex justify-end space-x-2 pt-4">
