@@ -2585,35 +2585,20 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
         return;
       }
 
-      // Option to replace: delete existing items from this group first
+      // Skip items that are already in the session (only add new ones)
       const currentSelectedIds = new Set(selectedItems.map(item => item.id));
-      const existingItemsFromGroup = groupItemIds.filter(id => currentSelectedIds.has(id));
+      const newItemIds = groupItemIds.filter(id => !currentSelectedIds.has(id));
 
-      if (existingItemsFromGroup.length > 0) {
-        const confirmReplace = window.confirm(
-          `${existingItemsFromGroup.length} items from "${group.name}" are already in the session.\n\n` +
-          `Do you want to replace them? (This will remove and re-add all ${groupItemIds.length} items from this group)`
-        );
-
-        if (!confirmReplace) {
-          return;
-        }
-
-        // Delete existing items from this group
-        const { error: deleteError } = await supabase
-          .from('session_items')
-          .delete()
-          .eq('session_id', session.id)
-          .in('item_id', existingItemsFromGroup);
-
-        if (deleteError) throw deleteError;
+      if (newItemIds.length === 0) {
+        alert(`All ${groupItemIds.length} items from "${group.name}" are already in the session.`);
+        return;
       }
 
-      // Fetch full item details from database (not from availableItems which may be incomplete)
+      // Fetch full item details from database for NEW items only
       const { data: itemsToAdd, error: fetchError } = await supabase
         .from('items')
         .select('id, sku, item_code, item_name, internal_product_code, category, tags')
-        .in('id', groupItemIds);
+        .in('id', newItemIds);
 
       if (fetchError) throw fetchError;
 
@@ -2622,7 +2607,7 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
         return;
       }
 
-      // Insert all items to session
+      // Insert only new items to session
       const itemsToInsert = itemsToAdd.map(item => ({
         session_id: session.id,
         item_id: item.id
@@ -2635,15 +2620,15 @@ const ItemSelectionModal = React.memo(({ session, onClose, onSave, onDataChange 
       if (insertError) throw insertError;
 
       // Update state: remove from available, add to selected
-      setAvailableItems(prev => prev.filter(item => !groupItemIds.includes(item.id)));
+      setAvailableItems(prev => prev.filter(item => !newItemIds.includes(item.id)));
+      setSelectedItems(prev => [...prev, ...itemsToAdd].sort((a, b) => a.item_name.localeCompare(b.item_name)));
 
-      // For selected items: remove old ones from this group, add all fresh
-      setSelectedItems(prev => {
-        const filtered = prev.filter(item => !groupItemIds.includes(item.id));
-        return [...filtered, ...itemsToAdd].sort((a, b) => a.item_name.localeCompare(b.item_name));
-      });
+      const skippedCount = groupItemIds.length - newItemIds.length;
+      const message = skippedCount > 0
+        ? `Successfully added ${itemsToAdd.length} items from "${group.name}".\n${skippedCount} items were skipped (already in session).`
+        : `Successfully added ${itemsToAdd.length} items from "${group.name}" to the session.`;
 
-      alert(`Successfully added ${itemsToAdd.length} items from "${group.name}" to the session.`);
+      alert(message);
     } catch (err) {
       console.error('Error adding group:', err);
       alert('Error adding items from group: ' + err.message);
