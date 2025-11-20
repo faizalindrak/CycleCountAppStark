@@ -684,6 +684,21 @@ const ItemGroupsManager = React.memo(({ itemGroups, setItemGroups, items, onData
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Refresh only item groups data (not all dashboard data)
+  const refreshItemGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('item_groups')
+        .select('*, item_group_items(item_id)')
+        .order('name');
+
+      if (error) throw error;
+      setItemGroups(data || []);
+    } catch (err) {
+      console.error('Error refreshing item groups:', err);
+    }
+  };
+
   const handleCreateGroup = () => {
     setEditingGroup(null);
     setShowEditor(true);
@@ -707,7 +722,7 @@ const ItemGroupsManager = React.memo(({ itemGroups, setItemGroups, items, onData
 
       if (error) throw error;
 
-      await onDataChange();
+      await refreshItemGroups(); // Only refresh item groups, not all data
     } catch (err) {
       console.error('Error deleting item group:', err);
       alert('Error deleting item group: ' + err.message);
@@ -831,7 +846,7 @@ const ItemGroupsManager = React.memo(({ itemGroups, setItemGroups, items, onData
         <ItemGroupEditor
           group={editingGroup}
           onClose={() => setShowEditor(false)}
-          onSave={onDataChange}
+          onSave={refreshItemGroups} // Only refresh item groups, not all data
         />
       )}
 
@@ -841,9 +856,9 @@ const ItemGroupsManager = React.memo(({ itemGroups, setItemGroups, items, onData
           onClose={() => {
             setShowItemsManagement(false);
             setSelectedGroup(null);
-            onDataChange();
+            refreshItemGroups(); // Only refresh item groups, not all data
           }}
-          onSave={onDataChange}
+          onSave={refreshItemGroups} // Only refresh item groups, not all data
         />
       )}
     </div>
