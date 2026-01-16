@@ -641,6 +641,39 @@ const ItemsList = () => {
       return;
     }
 
+    // Validate session time window and status
+    if (session) {
+      const now = new Date();
+
+      // Check if session is closed
+      if (session.status === 'closed' || session.status === 'completed' || session.status === 'cancelled') {
+        alert(`Cannot save count. Session is ${session.status}.`);
+        return;
+      }
+
+      // Check if session is still scheduled (not yet active)
+      if (session.status === 'scheduled') {
+        alert('Cannot save count. Session is not yet active.');
+        return;
+      }
+
+      // Check if session has time window restrictions
+      if (session.valid_from && session.valid_until) {
+        const validFrom = new Date(session.valid_from);
+        const validUntil = new Date(session.valid_until);
+
+        if (now < validFrom) {
+          alert(`Session has not started yet. It will open at ${validFrom.toLocaleString()}`);
+          return;
+        }
+
+        if (now > validUntil) {
+          alert(`Session has expired. It closed at ${validUntil.toLocaleString()}`);
+          return;
+        }
+      }
+    }
+
     try {
       setSubmitting(true);
 
