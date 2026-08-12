@@ -38,6 +38,9 @@ const BacklogReport = () => {
   const [form, setForm] = useState(emptyForm);
   const [filterDate, setFilterDate] = useState(getLocalDate());
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [skuQuery, setSkuQuery] = useState('');
+  const [showSkuOptions, setShowSkuOptions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
@@ -45,7 +48,7 @@ const BacklogReport = () => {
   const fetchItems = useCallback(async () => {
     const { data, error } = await supabase
       .from('items')
-      .select('id, sku, item_name, uom')
+      .select('id, sku, item_name, uom, category')
       .order('sku', { ascending: true });
     if (error) throw error;
     setItems(data || []);
@@ -119,9 +122,47 @@ const BacklogReport = () => {
 
   const selectedItem = items.find((item) => item.id === form.itemId);
 
+  const categories = useMemo(
+    () => [...new Set(items.map((item) => item.category).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'id')),
+    [items]
+  );
+
+  const filteredItems = useMemo(() => {
+    const keyword = skuQuery.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesCategory = !categoryFilter || item.category === categoryFilter;
+      const matchesKeyword = !keyword
+        || item.sku.toLowerCase().includes(keyword)
+        || item.item_name.toLowerCase().includes(keyword);
+      return matchesCategory && matchesKeyword;
+    }).slice(0, 50);
+  }, [items, categoryFilter, skuQuery]);
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleCategoryChange = (event) => {
+    setCategoryFilter(event.target.value);
+    setSkuQuery('');
+    setForm((current) => ({ ...current, itemId: '' }));
+    setShowSkuOptions(false);
+  };
+
+  const selectItem = (item) => {
+    setForm((current) => ({ ...current, itemId: item.id }));
+    setSkuQuery(`${item.sku} - ${item.item_name}`);
+    setShowSkuOptions(false);
+  };
+
+  const handleSkuKeyDown = (event) => {
+    if (event.key === 'Enter' && showSkuOptions && filteredItems.length > 0) {
+      event.preventDefault();
+      selectItem(filteredItems[0]);
+    }
+    if (event.key === 'Escape') setShowSkuOptions(false);
   };
 
   const handleSubmit = async (event) => {
@@ -150,6 +191,7 @@ const BacklogReport = () => {
 
       setFilterDate(form.transactionDate);
       setForm(emptyForm());
+      setSkuQuery('');
       setMessage({ type: 'success', text: `Backlog ${selectedItem.sku} berhasil dicatat.` });
       await fetchRecords();
     } catch (error) {
@@ -225,12 +267,63 @@ const BacklogReport = () => {
             <p className="mt-1 text-sm text-slate-500">Tanggal otomatis terisi sesuai tanggal hari ini.</p>
           </div>
           <form onSubmit={handleSubmit} className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
-            <label className="block text-sm font-medium text-slate-700 lg:col-span-2">
-              SKU <span className="text-red-500">*</span>
-              <select name="itemId" value={form.itemId} onChange={handleChange} required className="mt-2 w-full rounded-lg border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus:border-amber-500 focus:ring-amber-500">
-                <option value="">Pilih SKU</option>
-                {items.map((item) => <option key={item.id} value={item.id}>{item.sku} — {item.item_name}</option>)}
+            <label className="block text-sm font-medium text-slate-700">
+              Kategori
+              <select value={categoryFilter} onChange={handleCategoryChange} className="mt-2 w-full rounded-lg border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus:border-amber-500 focus:ring-amber-500">
+                <option value="">Semua kategori</option>
+                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
+            </label>
+
+            <label className="relative block text-sm font-medium text-slate-700">
+              SKU <span className="text-red-500">*</span>
+              <div className="relative mt-2">
+                <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                <input
+                  value={skuQuery}
+                  onChange={(event) => {
+                    setSkuQuery(event.target.value);
+                    setForm((current) => ({ ...current, itemId: '' }));
+                    setShowSkuOptions(true);
+                  }}
+                  onFocus={() => setShowSkuOptions(true)}
+                  onBlur={() => setShowSkuOptions(false)}
+                  onKeyDown={handleSkuKeyDown}
+                  required
+                  autoComplete="off"
+                  placeholder="Cari SKU atau nama item..."
+                  role="combobox"
+                  aria-expanded={showSkuOptions}
+                  aria-controls="backlog-sku-options"
+                  className="w-full rounded-lg border-slate-300 py-2.5 pl-10 pr-3 text-slate-900 focus:border-amber-500 focus:ring-amber-500"
+                />
+              </div>
+              {showSkuOptions && (
+                <div id="backlog-sku-options" role="listbox" className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
+                  {filteredItems.length > 0 ? filteredItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="option"
+                      aria-selected={item.id === form.itemId}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        selectItem(item);
+                      }}
+                      className="flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left hover:bg-amber-50"
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-semibold text-slate-900">{item.sku}</span>
+                        <span className="block truncate text-xs font-normal text-slate-500">{item.item_name}</span>
+                      </span>
+                      <span className="shrink-0 rounded bg-slate-100 px-2 py-1 text-xs font-normal text-slate-600">{item.category}</span>
+                    </button>
+                  )) : (
+                    <p className="px-3 py-4 text-center text-sm font-normal text-slate-500">SKU atau nama item tidak ditemukan.</p>
+                  )}
+                </div>
+              )}
+              {selectedItem && <span className="mt-1 block text-xs text-emerald-600">Terpilih: {selectedItem.sku} - {selectedItem.item_name}</span>}
             </label>
 
             <label className="block text-sm font-medium text-slate-700">
