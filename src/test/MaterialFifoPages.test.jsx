@@ -73,8 +73,8 @@ describe('Material FIFO pages', () => {
   it('filters immutable history and expands FIFO allocations', async () => {
     const user = userEvent.setup();
     const transactions = [
-      { id: 'tx-in', transaction_type: 'IN', transaction_date: '2026-08-10', quantity: '10', location: 'A1.1', created_by: 'user-1', item: { sku: 'RM-01', item_name: 'Resin A', uom: 'KG' }, allocations: [] },
-      { id: 'tx-out', transaction_type: 'OUT', transaction_date: '2026-08-12', quantity: '4', location: null, created_by: 'user-2', item: { sku: 'RM-02', item_name: 'Resin B', uom: 'KG' }, allocations: [
+      { id: 'tx-in', transaction_type: 'IN', transaction_date: '2026-08-10', quantity: '10', inbound_lot: { location: 'A1.1' }, created_by: 'user-1', item: { sku: 'RM-01', item_name: 'Resin A', uom: 'KG' }, allocations: [] },
+      { id: 'tx-out', transaction_type: 'OUT', transaction_date: '2026-08-12', quantity: '4', selected_location: 'A1.1', created_by: 'user-2', item: { sku: 'RM-02', item_name: 'Resin B', uom: 'KG' }, allocations: [
         { id: 'a2', quantity: '1', lot: { location: 'A2.1', received_date: '2026-08-05' } },
         { id: 'a1', quantity: '3', lot: { location: 'A1.1', received_date: '2026-08-01' } },
       ] },

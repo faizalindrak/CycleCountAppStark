@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { toStockExportRows, toTransactionExportRows } from '../lib/exportRows';
+import { localDateInput } from '../lib/dates';
 
-const filenameDate = () => new Date().toISOString().slice(0, 10);
 const saveRows = (rows, sheetName, filename) => {
   const sheet = XLSX.utils.json_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
@@ -23,10 +23,10 @@ const ExportPage = (props) => {
     return materials.filter((item) => !normalized || `${item.sku} ${item.item_name}`.toLowerCase().includes(normalized));
   }, [materials, query]);
   const withLots = (rows) => rows.map((item) => ({ ...item, lots: lotsByItem[item.item_id ?? item.id] ?? [] }));
-  const exportStock = (rows) => saveRows(toStockExportRows(withLots(rows)), 'Stok FIFO', `stok_material_fifo_${filenameDate()}.xlsx`);
+  const exportStock = (rows) => saveRows(toStockExportRows(withLots(rows)), 'Stok FIFO', `stok_material_fifo_${localDateInput()}.xlsx`);
   const exportTransactions = () => {
     const rows = transactions.map((transaction) => ({ ...transaction, created_by_name: profiles[transaction.created_by]?.name ?? profiles[transaction.created_by]?.username ?? transaction.created_by }));
-    saveRows(toTransactionExportRows(rows), 'Transaksi FIFO', `transaksi_material_fifo_${filenameDate()}.xlsx`);
+    saveRows(toTransactionExportRows(rows), 'Transaksi FIFO', `transaksi_material_fifo_${localDateInput()}.xlsx`);
   };
 
   return <section className="space-y-4">

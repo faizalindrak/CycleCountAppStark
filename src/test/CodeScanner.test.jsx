@@ -26,6 +26,25 @@ describe('CodeScanner', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  it('uses the native BarcodeDetector when available', async () => {
+    const detect = vi.fn().mockResolvedValue([{ rawValue: 'RM-01' }]);
+    global.BarcodeDetector = class BarcodeDetector { detect(...args) { return detect(...args); } };
+    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => { queueMicrotask(callback); return 1; });
+    const onSelect = vi.fn();
+    render(<CodeScanner items={items} onSelect={onSelect} onClose={vi.fn()} />);
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(items[0]));
+    expect(detect).toHaveBeenCalled();
+    expect(zxing.decodeFromVideoDevice).not.toHaveBeenCalled();
+  });
+
+  it('falls back to ZXing when native initialization fails', async () => {
+    global.BarcodeDetector = class BarcodeDetector { constructor() { throw new Error('unsupported formats'); } };
+    const onSelect = vi.fn();
+    render(<CodeScanner items={items} onSelect={onSelect} onClose={vi.fn()} />);
+    await waitFor(() => expect(zxing.decodeFromVideoDevice).toHaveBeenCalled());
+    expect(onSelect).toHaveBeenCalledWith(items[0]);
+  });
+
   it('falls back to ZXing and selects a scanned item', async () => {
     const onSelect = vi.fn();
     render(<CodeScanner items={items} onSelect={onSelect} onClose={vi.fn()} />);

@@ -45,6 +45,9 @@ export async function fetchFifoTransactions(filters = {}) {
   let query = supabase.from('material_fifo_transactions').select(`
     *,
     item:items(id, sku, item_name, uom, item_code, internal_product_code),
+    inbound_lot:material_fifo_lots!material_fifo_lots_inbound_transaction_id_fkey(
+      id, location, received_date
+    ),
     allocations:material_fifo_allocations(
       id, quantity,
       lot:material_fifo_lots(id, location, received_date)

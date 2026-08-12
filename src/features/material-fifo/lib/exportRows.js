@@ -24,7 +24,9 @@ export function toStockExportRows(materials = []) {
 }
 
 export function toTransactionExportRows(transactions = []) {
-  return transactions.map((transaction) => ({
+  return transactions.map((transaction) => {
+    const inboundLot = Array.isArray(transaction.inbound_lot) ? transaction.inbound_lot[0] : transaction.inbound_lot;
+    return ({
     'Transaction ID': transaction.id ?? '',
     'Request ID': transaction.request_id ?? '',
     Timestamp: transaction.created_at ?? '',
@@ -39,9 +41,11 @@ export function toTransactionExportRows(transactions = []) {
     'Stock Sesudah': Number(transaction.stock_after ?? 0),
     Catatan: transaction.notes ?? '',
     User: transaction.created_by_name ?? transaction.created_by ?? '',
+    Lokasi: transaction.selected_location ?? inboundLot?.location ?? '',
     Allocations: (transaction.allocations ?? []).map((allocation) => {
       const lot = allocation.lot ?? allocation.material_fifo_lots ?? {};
       return `${lot.location ?? ''} | ${quantityText(allocation.quantity)} | ${dateText(lot.received_date)}`;
     }).join('\n'),
-  }));
+    });
+  });
 }

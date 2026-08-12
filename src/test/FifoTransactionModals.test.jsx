@@ -44,4 +44,12 @@ describe('FIFO transaction modals', () => {
     fireEvent.click(screen.getByRole('button', { name: /Konfirmasi barang keluar/i }));
     await waitFor(() => expect(api.issueMaterial).toHaveBeenCalled());
   });
+
+  it('debounces automatic outbound preview after valid input', async () => {
+    render(<FifoOutboundModal materials={materials} lotsByItem={{}} onClose={vi.fn()} refresh={vi.fn()} />);
+    fireEvent.click(screen.getByText('Pilih Material keluar'));
+    fireEvent.change(screen.getByLabelText(/^Qty/i), { target: { value: '2.5' } });
+    await waitFor(() => expect(api.previewIssue).toHaveBeenCalledWith({ itemId: 'i1', quantity: '2.5', issueMethod: 'FIFO', location: '' }));
+    expect(await screen.findByText(/A1.1/)).toBeInTheDocument();
+  });
 });

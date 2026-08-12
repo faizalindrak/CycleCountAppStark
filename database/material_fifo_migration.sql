@@ -555,6 +555,8 @@ REVOKE ALL ON FUNCTION public.preview_material_fifo_issue(uuid,numeric,text,text
 REVOKE ALL ON FUNCTION public.issue_material_fifo(uuid,numeric,text,text,date,text,uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.upsert_material_fifo_settings(uuid,numeric,numeric,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.create_raw_material_item(text,text,text,text,text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.material_fifo_stock(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.material_fifo_result(uuid,boolean) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.receive_material_fifo(uuid,text,numeric,date,text,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.preview_material_fifo_issue(uuid,numeric,text,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.issue_material_fifo(uuid,numeric,text,text,date,text,uuid,uuid) TO authenticated;

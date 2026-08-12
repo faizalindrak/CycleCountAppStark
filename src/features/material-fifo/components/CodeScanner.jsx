@@ -42,14 +42,38 @@ const CodeScanner = ({ items, onSelect, onClose }) => {
           await videoRef.current.play?.().catch(() => undefined);
         }
 
+        let fallbackStarted = false;
+        const startZxing = () => {
+          if (disposed || fallbackStarted) return;
+          fallbackStarted = true;
+          const reader = new BrowserMultiFormatReader();
+          readerRef.current = reader;
+          setStatus('Arahkan kamera ke QR atau barcode.');
+          reader.decodeFromVideoDevice(undefined, videoRef.current, (result) => {
+            const text = result?.getText?.() ?? result?.text;
+            if (text) resolveCode(text);
+          });
+        };
+
         if ('BarcodeDetector' in globalThis) {
-          const detector = new globalThis.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'] });
+          let detector;
+          try {
+            detector = new globalThis.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'] });
+          } catch {
+            setStatus('Scanner native tidak tersedia, memakai fallback kamera.');
+            startZxing();
+            return;
+          }
           const detect = async () => {
             if (disposed || !videoRef.current) return;
             try {
               const codes = await detector.detect(videoRef.current);
               if (codes[0]?.rawValue && resolveCode(codes[0].rawValue)) return;
-            } catch { setStatus('Scanner native tidak tersedia, memakai fallback kamera.'); }
+            } catch {
+              setStatus('Scanner native tidak tersedia, memakai fallback kamera.');
+              startZxing();
+              return;
+            }
             frameRef.current = requestAnimationFrame(detect);
           };
           setStatus('Arahkan kamera ke QR atau barcode.');
@@ -57,13 +81,7 @@ const CodeScanner = ({ items, onSelect, onClose }) => {
           return;
         }
 
-        const reader = new BrowserMultiFormatReader();
-        readerRef.current = reader;
-        setStatus('Arahkan kamera ke QR atau barcode.');
-        reader.decodeFromVideoDevice(undefined, videoRef.current, (result) => {
-          const text = result?.getText?.() ?? result?.text;
-          if (text) resolveCode(text);
-        });
+        startZxing();
       } catch (error) {
         cleanupScanner();
         setStatus(error?.name === 'NotAllowedError' ? 'Izin kamera ditolak. Gunakan scanner handheld atau input manual.' : 'Kamera tidak tersedia. Gunakan scanner handheld atau input manual.');

@@ -2,15 +2,15 @@ import React, { useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import MaterialSearchField from './MaterialSearchField';
 import { receiveMaterial } from '../api/materialFifoApi';
+import { localDateInput } from '../lib/dates';
 
-const today = () => new Date().toISOString().slice(0, 10);
 const validDecimal = (value) => /^\d+(\.\d{1,4})?$/.test(value) && Number(value) > 0;
 
 const FifoInboundModal = ({ materials, lotsByItem, onClose, refresh }) => {
   const [item, setItem] = useState(null);
   const [location, setLocation] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(localDateInput());
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');

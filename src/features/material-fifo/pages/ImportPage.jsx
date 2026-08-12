@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { issueMaterial, upsertFifoSettings } from '../api/materialFifoApi';
 import { parseMinMaxRows, parseOutboundRows } from '../lib/importRows';
-
-const today = () => new Date().toISOString().slice(0, 10);
+import { localDateInput } from '../lib/dates';
 
 const ImportPage = (props) => {
   const outlet = useOutletContext() ?? {};
@@ -15,6 +14,7 @@ const ImportPage = (props) => {
   const [results, setResults] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [fileError, setFileError] = useState('');
+  const importIdentity = useRef(null);
 
   const downloadTemplate = () => {
     const outbound = kind === 'OUTBOUND';
@@ -27,12 +27,20 @@ const ImportPage = (props) => {
   const readFile = async (event) => {
     const file = event.target.files?.[0];
     setPreview(null); setResults([]); setFileError('');
+    importIdentity.current = null;
     if (!file) return;
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: '' });
-      setPreview(kind === 'OUTBOUND' ? parseOutboundRows(rows, materials) : parseMinMaxRows(rows, materials));
+      const parsed = kind === 'OUTBOUND' ? parseOutboundRows(rows, materials) : parseMinMaxRows(rows, materials);
+      setPreview(parsed);
+      if (kind === 'OUTBOUND') {
+        importIdentity.current = {
+          batchId: crypto.randomUUID(),
+          requestIds: Object.fromEntries(parsed.validRows.map((row) => [row.rowNumber, crypto.randomUUID()])),
+        };
+      }
     } catch (failure) {
       setFileError(`File tidak dapat dibaca: ${failure.message}`);
     }
@@ -42,7 +50,8 @@ const ImportPage = (props) => {
     if (!preview?.validRows.length || processing) return;
     setProcessing(true); setResults([]);
     const nextResults = [];
-    const importBatchId = crypto.randomUUID();
+    const identity = importIdentity.current || { batchId: crypto.randomUUID(), requestIds: {} };
+    importIdentity.current = identity;
     for (const row of preview.validRows) {
       try {
         if (kind === 'OUTBOUND') {
@@ -51,8 +60,8 @@ const ImportPage = (props) => {
             quantity: String(row.quantity),
             issueMethod: row.location ? 'MANUAL' : 'FIFO',
             location: row.location || null,
-            transactionDate: today(), notes: '',
-            requestId: crypto.randomUUID(), importBatchId,
+            transactionDate: localDateInput(), notes: '',
+            requestId: identity.requestIds[row.rowNumber] ||= crypto.randomUUID(), importBatchId: identity.batchId,
           });
           nextResults.push({ rowNumber: row.rowNumber, sku: row.sku, ok: true, stockAfter: response.stock_after });
         } else {
@@ -69,7 +78,7 @@ const ImportPage = (props) => {
   };
 
   const changeKind = (event) => {
-    setKind(event.target.value); setPreview(null); setResults([]); setFileError('');
+    setKind(event.target.value); setPreview(null); setResults([]); setFileError(''); importIdentity.current = null;
   };
 
   return <section className="space-y-4">

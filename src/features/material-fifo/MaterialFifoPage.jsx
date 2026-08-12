@@ -12,8 +12,6 @@ import FifoInboundModal from './components/FifoInboundModal';
 import FifoOutboundModal from './components/FifoOutboundModal';
 import { useMaterialFifoData } from './hooks/useMaterialFifoData';
 
-const Placeholder = ({ title }) => <div className="rounded-xl border bg-white p-8"><h2 className="text-xl font-bold">{title}</h2><p className="mt-2 text-slate-500">Fitur sedang dimuat dalam integrasi Material FIFO.</p></div>;
-
 const MaterialFifoPage = () => {
   const data = useMaterialFifoData();
   const [modal, setModal] = useState(null);

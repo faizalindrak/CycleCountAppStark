@@ -14,11 +14,20 @@ describe('FIFO export mapping', () => {
   it('maps allocation and audit details', () => {
     const rows = toTransactionExportRows([{
       id: 'tx-1', request_id: 'req-1', transaction_type: 'OUT', quantity: '2.0000',
-      stock_before: '5.0000', stock_after: '3.0000', created_by_name: 'Faizal',
+      stock_before: '5.0000', stock_after: '3.0000', selected_location: 'A1.1', created_by_name: 'Faizal',
       allocations: [{ quantity: '2.0000', lot: { location: 'A1.1', received_date: '2026-08-01' } }],
     }]);
     expect(rows[0]['Request ID']).toBe('req-1');
     expect(rows[0].User).toBe('Faizal');
+    expect(rows[0].Lokasi).toBe('A1.1');
     expect(rows[0].Allocations).toContain('A1.1');
+  });
+
+  it('maps inbound location from its created lot', () => {
+    const [row] = toTransactionExportRows([{
+      id: 'tx-in', transaction_type: 'IN', quantity: '5',
+      inbound_lot: { location: 'B2.1', received_date: '2026-08-02' },
+    }]);
+    expect(row.Lokasi).toBe('B2.1');
   });
 });

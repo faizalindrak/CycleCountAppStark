@@ -15,7 +15,8 @@ const TransactionsPage = (props) => {
     return transactions.filter((transaction) => {
       const user = profiles[transaction.created_by];
       const locations = (transaction.allocations ?? []).map((allocation) => allocation.lot?.location);
-      const searchable = [transaction.item?.sku, transaction.item?.item_name, transaction.location, user?.name, user?.username, transaction.created_by, ...locations].filter(Boolean).join(' ').toLowerCase();
+      const inboundLot = Array.isArray(transaction.inbound_lot) ? transaction.inbound_lot[0] : transaction.inbound_lot;
+      const searchable = [transaction.item?.sku, transaction.item?.item_name, transaction.selected_location, inboundLot?.location, user?.name, user?.username, transaction.created_by, ...locations].filter(Boolean).join(' ').toLowerCase();
       return (type === 'ALL' || transaction.transaction_type === type)
         && (!dateFrom || transaction.transaction_date >= dateFrom)
         && (!dateTo || transaction.transaction_date <= dateTo)

@@ -74,20 +74,35 @@ describe('Material FIFO import and export pages', () => {
     expect(screen.getByText(/Baris 3 gagal.*Gangguan jaringan/i)).toBeInTheDocument();
   });
 
+  it('reuses outbound request and batch IDs when an import is retried', async () => {
+    const user = userEvent.setup();
+    issueMaterial.mockResolvedValue({ stock_after: '7' });
+    xlsx.rows = [['SKU', 'QTY'], ['RM-01', 3]];
+    render(<MemoryRouter><ImportPage materials={materials} refresh={vi.fn().mockResolvedValue()} /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('File import'), { target: { files: [new File(['x'], 'out.xlsx')] } });
+    const processButton = await screen.findByRole('button', { name: /Proses 1 baris valid/i });
+    await user.click(processButton);
+    await waitFor(() => expect(issueMaterial).toHaveBeenCalledTimes(1));
+    await user.click(processButton);
+    await waitFor(() => expect(issueMaterial).toHaveBeenCalledTimes(2));
+    expect(issueMaterial.mock.calls[1][0].requestId).toBe(issueMaterial.mock.calls[0][0].requestId);
+    expect(issueMaterial.mock.calls[1][0].importBatchId).toBe(issueMaterial.mock.calls[0][0].importBatchId);
+  });
+
   it('exports all stock or only filtered stock with lot details', async () => {
     const user = userEvent.setup();
-    vi.setSystemTime(new Date('2026-08-12T03:00:00Z'));
+    const now = new Date();
+    const expectedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const lotsByItem = { 1: [{ location: 'A1.1', remaining_qty: '3.5', received_date: '2026-08-01' }] };
     render(<MemoryRouter><ExportPage materials={materials} lotsByItem={lotsByItem} transactions={[]} profiles={{}} /></MemoryRouter>);
     await user.click(screen.getByRole('button', { name: /Export semua stok/i }));
     expect(xlsx.jsonToSheet.mock.calls.at(-1)[0]).toHaveLength(2);
     expect(xlsx.jsonToSheet.mock.calls.at(-1)[0][0].Lots).toContain('A1.1 | 3.5000 KG');
-    expect(xlsx.writeFile).toHaveBeenLastCalledWith(expect.anything(), 'stok_material_fifo_2026-08-12.xlsx');
+    expect(xlsx.writeFile).toHaveBeenLastCalledWith(expect.anything(), `stok_material_fifo_${expectedDate}.xlsx`);
 
     await user.type(screen.getByPlaceholderText(/Filter SKU atau nama/i), 'RM-02');
     await user.click(screen.getByRole('button', { name: /Export stok terfilter/i }));
     expect(xlsx.jsonToSheet.mock.calls.at(-1)[0]).toHaveLength(1);
     expect(xlsx.jsonToSheet.mock.calls.at(-1)[0][0].SKU).toBe('RM-02');
-    vi.useRealTimers();
   });
 });
