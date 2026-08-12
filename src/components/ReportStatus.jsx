@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode, X, Menu, History } from 'lucide-react';
+import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode, X, Menu, History, ClipboardList } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
 import BulkFollowUpModal from './BulkFollowUpModal';
@@ -622,6 +622,16 @@ const ReportStatus = () => {
                   >
                     <History className="h-4 w-4" />
                     History
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigate('/backlog');
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Report Backlog
                   </button>
                   <button
                     onClick={() => {

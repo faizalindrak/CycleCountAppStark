@@ -9,6 +9,7 @@ import SessionSelection from './components/SessionSelection';
 import ItemsList from './components/ItemsList';
 import ReportStatus from './components/ReportStatus';
 import HistoryPage from './components/HistoryPage';
+import BacklogReport from './components/BacklogReport';
 
 // Protected Route component for authenticated users
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -118,6 +119,16 @@ const App = () => {
             element={
               <ProtectedRoute>
                 <HistoryPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Inventory backlog transaction and report page */}
+          <Route
+            path="/backlog"
+            element={
+              <ProtectedRoute>
+                <BacklogReport />
               </ProtectedRoute>
             }
           />
