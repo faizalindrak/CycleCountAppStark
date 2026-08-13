@@ -2,8 +2,9 @@ import React, { useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { issueMaterial, upsertFifoSettings } from '../api/materialFifoApi';
-import { parseMinMaxRows, parseOutboundRows } from '../lib/importRows';
+import { FieldLabel, inputClass, PageHeader, Panel, primaryButtonClass, secondaryButtonClass } from '../components/MaterialFifoUi';
 import { localDateInput } from '../lib/dates';
+import { parseMinMaxRows, parseOutboundRows } from '../lib/importRows';
 
 const ImportPage = (props) => {
   const outlet = useOutletContext() ?? {};
@@ -57,10 +58,8 @@ const ImportPage = (props) => {
         if (kind === 'OUTBOUND') {
           const response = await issueMaterial({
             itemId: row.item.item_id ?? row.item.id,
-            quantity: String(row.quantity),
-            issueMethod: row.location ? 'MANUAL' : 'FIFO',
-            location: row.location || null,
-            transactionDate: localDateInput(), notes: '',
+            quantity: String(row.quantity), issueMethod: row.location ? 'MANUAL' : 'FIFO',
+            location: row.location || null, transactionDate: localDateInput(), notes: '',
             requestId: identity.requestIds[row.rowNumber] ||= crypto.randomUUID(), importBatchId: identity.batchId,
           });
           nextResults.push({ rowNumber: row.rowNumber, sku: row.sku, ok: true, stockAfter: response.stock_after });
@@ -82,19 +81,20 @@ const ImportPage = (props) => {
   };
 
   return <section className="space-y-4">
-    <div><h2 className="text-2xl font-bold text-slate-900">Import</h2><p className="text-sm text-slate-500">Periksa preview sebelum data diproses. SKU yang belum dikenal harus ditambahkan melalui Kelola SKU.</p></div>
-    <div className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
+    <PageHeader title="Import" description="Periksa preview sebelum data diproses. SKU yang belum dikenal harus ditambahkan melalui Kelola SKU." />
+    <Panel ariaLabel="Konfigurasi import" className="space-y-4 p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <label className="flex-1 text-sm font-medium">Jenis import<select aria-label="Jenis import" value={kind} onChange={changeKind} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="OUTBOUND">Barang keluar FIFO</option><option value="MINMAX">SKU MIN/MAX</option></select></label>
-        <button type="button" onClick={downloadTemplate} className="rounded-lg border border-blue-200 px-4 py-2 font-semibold text-blue-700">Unduh template</button>
+        <FieldLabel label="Jenis import" className="flex-1"><select aria-label="Jenis import" value={kind} onChange={changeKind} className={inputClass}><option value="OUTBOUND">Barang keluar FIFO</option><option value="MINMAX">SKU MIN/MAX</option></select></FieldLabel>
+        <button type="button" onClick={downloadTemplate} className={secondaryButtonClass}>Unduh template</button>
       </div>
-      <label className="block text-sm font-medium">Pilih file (.xlsx, .xls, .csv)<input aria-label="File import" type="file" accept=".xlsx,.xls,.csv" onChange={readFile} className="mt-1 block w-full rounded-lg border p-2" /></label>
-      {fileError && <p role="alert" className="text-sm text-red-600">{fileError}</p>}
-    </div>
-    {preview && <div className="space-y-3 rounded-xl border bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold">Preview import</h3><p className="text-sm text-slate-500">{preview.validRows.length} valid · {preview.invalidRows.length} tidak valid</p></div><button type="button" disabled={!preview.validRows.length || processing} onClick={processRows} className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{processing ? 'Memproses...' : `Proses ${preview.validRows.length} baris valid`}</button></div>
-      <div className="divide-y rounded-lg border">{preview.rows.map((row) => <p key={`${row.rowNumber}-${row.sku}`} className={`p-3 text-sm ${row.valid ? 'text-green-700' : 'text-red-600'}`}>Baris {row.rowNumber} · {row.sku || 'tanpa SKU'} · {row.valid ? 'Valid' : row.reason}</p>)}</div>
-    </div>}
-    {results.length > 0 && <div className="space-y-2 rounded-xl border bg-white p-5"><h3 className="font-bold">Hasil proses</h3>{results.map((result) => <p key={result.rowNumber} className={`text-sm ${result.ok ? 'text-green-700' : 'text-red-600'}`}>Baris {result.rowNumber} {result.ok ? `berhasil${result.stockAfter != null ? ` · stok ${result.stockAfter}` : ''}` : `gagal · ${result.error}`}</p>)}</div>}
+      <FieldLabel label="Pilih file (.xlsx, .xls, .csv)"><input aria-label="File import" type="file" accept=".xlsx,.xls,.csv" onChange={readFile} className={`${inputClass} block file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-blue-700`} /></FieldLabel>
+      {fileError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{fileError}</p>}
+    </Panel>
+    {preview && <Panel ariaLabel="Preview import" className="space-y-3 p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="text-sm font-bold text-slate-900">Preview import</h3><p className="text-xs text-slate-500">{preview.validRows.length} valid · {preview.invalidRows.length} tidak valid</p></div><button type="button" disabled={!preview.validRows.length || processing} onClick={processRows} className={primaryButtonClass}>{processing ? 'Memproses...' : `Proses ${preview.validRows.length} baris valid`}</button></div>
+      <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200">{preview.rows.map((row) => <p key={`${row.rowNumber}-${row.sku}`} className={`p-3 text-xs ${row.valid ? 'bg-emerald-50/50 text-emerald-700' : 'bg-red-50/50 text-red-700'}`}>Baris {row.rowNumber} · {row.sku || 'tanpa SKU'} · {row.valid ? 'Valid' : row.reason}</p>)}</div>
+    </Panel>}
+    {results.length > 0 && <Panel ariaLabel="Hasil proses import" className="space-y-2 p-5"><h3 className="text-sm font-bold text-slate-900">Hasil proses</h3>{results.map((result) => <p key={result.rowNumber} className={`rounded-lg px-3 py-2 text-xs ${result.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>Baris {result.rowNumber} {result.ok ? `berhasil${result.stockAfter != null ? ` · stok ${result.stockAfter}` : ''}` : `gagal · ${result.error}`}</p>)}</Panel>}
   </section>;
 };
 

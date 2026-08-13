@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
+import { Download, FileClock, Search } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { toStockExportRows, toTransactionExportRows } from '../lib/exportRows';
+import { inputClass, PageHeader, Panel, primaryButtonClass, secondaryButtonClass } from '../components/MaterialFifoUi';
 import { localDateInput } from '../lib/dates';
+import { toStockExportRows, toTransactionExportRows } from '../lib/exportRows';
 
 const saveRows = (rows, sheetName, filename) => {
   const sheet = XLSX.utils.json_to_sheet(rows);
@@ -30,9 +32,20 @@ const ExportPage = (props) => {
   };
 
   return <section className="space-y-4">
-    <div><h2 className="text-2xl font-bold text-slate-900">Export</h2><p className="text-sm text-slate-500">Unduh stok beserta detail lot atau histori transaksi lengkap.</p></div>
-    <div className="space-y-4 rounded-xl border bg-white p-5 shadow-sm"><h3 className="font-bold">Stok Material FIFO</h3><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter SKU atau nama..." className="w-full rounded-lg border px-3 py-2" /><p className="text-sm text-slate-500">{filteredMaterials.length} dari {materials.length} material</p><div className="flex flex-wrap gap-2"><button type="button" onClick={() => exportStock(materials)} className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">Export semua stok</button><button type="button" onClick={() => exportStock(filteredMaterials)} className="rounded-lg border border-blue-200 px-4 py-2 font-semibold text-blue-700">Export stok terfilter</button></div></div>
-    <div className="rounded-xl border bg-white p-5 shadow-sm"><h3 className="font-bold">Histori Transaksi</h3><p className="mb-4 text-sm text-slate-500">{transactions.length} transaksi termasuk detail user dan alokasi lot.</p><button type="button" onClick={exportTransactions} className="rounded-lg bg-slate-800 px-4 py-2 font-semibold text-white">Export semua transaksi</button></div>
+    <PageHeader title="Export" description="Unduh stok beserta detail lot atau histori transaksi lengkap." />
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Panel ariaLabel="Stok Material FIFO" className="space-y-4 p-5">
+        <div className="flex items-start gap-3"><span className="rounded-lg bg-blue-50 p-2 text-blue-600"><Download className="h-5 w-5" /></span><div><h3 className="text-sm font-bold text-slate-900">Stok Material FIFO</h3><p className="text-xs text-slate-500">Termasuk detail lokasi, qty, dan tanggal setiap lot.</p></div></div>
+        <div className="relative"><Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter SKU atau nama..." className={`${inputClass} mt-0 pl-9`} /></div>
+        <p className="text-xs text-slate-500"><span className="font-semibold text-slate-700">{filteredMaterials.length}</span> dari {materials.length} material</p>
+        <div className="flex flex-col gap-2 sm:flex-row"><button type="button" onClick={() => exportStock(materials)} className={primaryButtonClass}>Export semua stok</button><button type="button" onClick={() => exportStock(filteredMaterials)} className={secondaryButtonClass}>Export stok terfilter</button></div>
+      </Panel>
+      <Panel ariaLabel="Histori Transaksi" className="flex flex-col p-5">
+        <div className="flex items-start gap-3"><span className="rounded-lg bg-slate-100 p-2 text-slate-600"><FileClock className="h-5 w-5" /></span><div><h3 className="text-sm font-bold text-slate-900">Histori Transaksi</h3><p className="text-xs text-slate-500">Audit permanen termasuk user dan alokasi lot.</p></div></div>
+        <p className="mb-5 mt-4 text-xs text-slate-500"><span className="font-semibold text-slate-700">{transactions.length}</span> transaksi tersedia.</p>
+        <button type="button" onClick={exportTransactions} className={`${secondaryButtonClass} mt-auto self-start`}>Export semua transaksi</button>
+      </Panel>
+    </div>
   </section>;
 };
 

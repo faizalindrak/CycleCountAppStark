@@ -60,6 +60,17 @@ describe('Material FIFO import and export pages', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it('presents import as configuration and preview stages', async () => {
+    const user = userEvent.setup();
+    xlsx.rows = [['SKU', 'MIN', 'MAX'], ['RM-01', 2, 5]];
+    render(<MemoryRouter><ImportPage materials={materials} refresh={vi.fn().mockResolvedValue()} /></MemoryRouter>);
+
+    expect(screen.getByRole('region', { name: 'Konfigurasi import' })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Jenis import'), 'MINMAX');
+    fireEvent.change(screen.getByLabelText('File import'), { target: { files: [new File(['x'], 'minmax.xlsx')] } });
+    expect(await screen.findByRole('region', { name: 'Preview import' })).toBeInTheDocument();
+  });
+
   it('processes outbound rows sequentially and preserves partial results', async () => {
     const user = userEvent.setup();
     issueMaterial.mockResolvedValueOnce({ stock_after: '7' }).mockRejectedValueOnce(new Error('Gangguan jaringan'));
@@ -104,5 +115,12 @@ describe('Material FIFO import and export pages', () => {
     await user.click(screen.getByRole('button', { name: /Export stok terfilter/i }));
     expect(xlsx.jsonToSheet.mock.calls.at(-1)[0]).toHaveLength(1);
     expect(xlsx.jsonToSheet.mock.calls.at(-1)[0][0].SKU).toBe('RM-02');
+  });
+
+  it('groups stock and transaction exports in labelled regions', () => {
+    render(<MemoryRouter><ExportPage materials={materials} lotsByItem={{}} transactions={[]} profiles={{}} /></MemoryRouter>);
+
+    expect(screen.getByRole('region', { name: 'Stok Material FIFO' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Histori Transaksi' })).toBeInTheDocument();
   });
 });

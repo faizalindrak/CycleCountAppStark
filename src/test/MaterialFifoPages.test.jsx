@@ -132,6 +132,7 @@ describe('Material FIFO pages', () => {
     const refresh = vi.fn().mockResolvedValue();
     createRawMaterialItem.mockResolvedValue({ sku: 'RM-99' });
     render(<MemoryRouter><ManageSkuPage refresh={refresh} /></MemoryRouter>);
+    expect(screen.getByRole('form', { name: 'Tambah SKU Raw Material' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Kategori')).not.toBeInTheDocument();
     await user.type(screen.getByLabelText('SKU'), ' RM-99 ');
     await user.type(screen.getByLabelText('Item code'), ' IT-99 ');
