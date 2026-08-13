@@ -15,10 +15,10 @@ vi.mock('../features/material-fifo/api/materialFifoApi', () => ({
 }));
 
 const materials = [
-  { item_id: '1', sku: 'RM-01', item_name: 'Resin A', internal_product_code: 'INT-A', uom: 'KG', stock_qty: '5', min_qty: '5', max_qty: '10', fifo_status: 'CRITICAL' },
-  { item_id: '2', sku: 'RM-02', item_name: 'Resin B', internal_product_code: 'INT-B', uom: 'KG', stock_qty: '12', min_qty: '5', max_qty: '10', fifo_status: 'OVER' },
-  { item_id: '3', sku: 'RM-03', item_name: 'Resin C', internal_product_code: 'INT-C', uom: 'KG', stock_qty: '7', min_qty: '5', max_qty: '10', fifo_status: 'NORMAL' },
-  { item_id: '4', sku: 'RM-04', item_name: 'Resin D', internal_product_code: 'INT-D', uom: 'KG', stock_qty: '0', min_qty: null, max_qty: null, fifo_status: 'NOT_CONFIGURED' },
+  { item_id: '1', sku: 'RM-01', item_code: 'PROD-A', item_name: 'Resin A', internal_product_code: 'INT-A', uom: 'KG', stock_qty: '5', min_qty: '5', max_qty: '10', fifo_status: 'CRITICAL' },
+  { item_id: '2', sku: 'RM-02', item_code: 'PROD-B', item_name: 'Resin B', internal_product_code: 'INT-B', uom: 'KG', stock_qty: '12', min_qty: '5', max_qty: '10', fifo_status: 'OVER' },
+  { item_id: '3', sku: 'RM-03', item_code: 'PROD-C', item_name: 'Resin C', internal_product_code: 'INT-C', uom: 'KG', stock_qty: '7', min_qty: '5', max_qty: '10', fifo_status: 'NORMAL' },
+  { item_id: '4', sku: 'RM-04', item_code: 'PROD-D', item_name: 'Resin D', internal_product_code: 'INT-D', uom: 'KG', stock_qty: '0', min_qty: null, max_qty: null, fifo_status: 'NOT_CONFIGURED' },
 ];
 const lotsByItem = {
   1: [
@@ -46,6 +46,25 @@ describe('Material FIFO pages', () => {
     const chips = screen.getAllByTestId('lot-chip');
     expect(chips[0]).toHaveTextContent('A1.1');
     expect(chips[1]).toHaveTextContent('A1.2');
+  });
+
+  it('renders Data FIFO as a dynamic semantic FIFO table', () => {
+    render(<MemoryRouter><DataFifoPage materials={materials} lotsByItem={lotsByItem} /></MemoryRouter>);
+
+    expect(screen.getByRole('table', { name: 'Data FIFO material' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'SKU' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'FIFO 1' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'FIFO 2' })).toBeInTheDocument();
+    expect(screen.getByText('PROD-A')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atur MIN/MAX RM-01' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('lot-chip')[0]).toHaveTextContent('A1.1');
+  });
+
+  it('shows one table empty state after filtering', () => {
+    render(<MemoryRouter><DataFifoPage materials={materials} lotsByItem={lotsByItem} /></MemoryRouter>);
+
+    fireEvent.change(screen.getByPlaceholderText(/Cari SKU/i), { target: { value: 'tidak-ada' } });
+    expect(screen.getByText('Tidak ada item ditemukan')).toBeInTheDocument();
   });
 
   it('validates and saves individual MIN/MAX settings', async () => {
