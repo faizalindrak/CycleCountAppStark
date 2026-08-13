@@ -102,12 +102,12 @@ const CodeScanner = ({ items, onSelect, onClose }) => {
   }, [resolveCode]);
 
   const close = () => { cleanupScanner(); onClose(); };
-  return <div role="dialog" aria-modal="true" aria-label="Scanner QR dan barcode" className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 p-4">
-    <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
-      <div className="flex items-center justify-between"><div><h2 className="flex items-center gap-2 text-lg font-bold"><Camera className="h-5 w-5 text-blue-600" /> Scan QR / Barcode</h2><p className="text-sm text-slate-500">Kamera, scanner USB/Bluetooth, atau input manual.</p></div><button aria-label="Tutup scanner" onClick={close}><X /></button></div>
-      <video ref={videoRef} muted playsInline className="mt-4 aspect-video w-full rounded-xl bg-slate-900 object-cover" />
-      <p className="mt-2 text-sm text-slate-600" role="status">{status}</p>
-      <div className="mt-4 flex gap-2"><label className="flex-1 text-sm font-medium text-slate-700"><span className="flex items-center gap-1"><Keyboard className="h-4 w-4" /> Kode manual</span><input aria-label="Kode manual" value={manual} onChange={(event) => setManual(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.stopPropagation(); resolveCode(manual); } }} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" /></label><button onClick={() => resolveCode(manual)} className="self-end rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">Gunakan kode</button></div>
+  return <div role="dialog" aria-modal="true" aria-label="Scanner QR dan barcode" className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-[1px] sm:p-4">
+    <div className="material-fifo-scrollbar max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-2xl">
+      <div className="flex items-start justify-between gap-4"><div><h2 className="flex items-center gap-2 text-base font-bold text-slate-950"><Camera className="h-5 w-5 text-blue-600" /> Scan QR / Barcode</h2><p className="mt-0.5 text-xs text-slate-500">Kamera, scanner USB/Bluetooth, atau input manual.</p></div><button aria-label="Tutup scanner" onClick={close} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"><X className="h-4 w-4" /></button></div>
+      <video ref={videoRef} muted playsInline className="mt-4 aspect-video w-full rounded-lg bg-slate-950 object-cover" />
+      <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600" role="status">{status}</p>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row"><label className="min-w-0 flex-1 text-xs font-medium text-slate-700"><span className="flex items-center gap-1"><Keyboard className="h-3.5 w-3.5" /> Kode manual</span><input aria-label="Kode manual" value={manual} onChange={(event) => setManual(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.stopPropagation(); resolveCode(manual); } }} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20" /></label><button onClick={() => resolveCode(manual)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:self-end">Gunakan kode</button></div>
     </div>
   </div>;
 };

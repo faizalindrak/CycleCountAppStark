@@ -56,6 +56,8 @@ describe('CodeScanner', () => {
     zxing.decodeFromVideoDevice.mockImplementation(() => undefined);
     const onSelect = vi.fn();
     render(<CodeScanner items={items} onSelect={onSelect} onClose={vi.fn()} />);
+    expect(screen.getByRole('dialog', { name: 'Scanner QR dan barcode' })).toHaveAttribute('aria-modal', 'true');
+    expect(screen.getByRole('button', { name: 'Tutup scanner' })).toBeInTheDocument();
     await waitFor(() => expect(zxing.decodeFromVideoDevice).toHaveBeenCalled());
     fireEvent.change(screen.getByLabelText(/Kode manual/i), { target: { value: 'RM-01' } });
     fireEvent.click(screen.getByRole('button', { name: /Gunakan kode/i }));

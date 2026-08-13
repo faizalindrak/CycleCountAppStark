@@ -19,6 +19,15 @@ describe('FIFO transaction modals', () => {
     api.issueMaterial.mockResolvedValue({ stock_after: '8', allocations: [] });
   });
 
+  it('exposes inbound and outbound forms as labelled modal dialogs', () => {
+    const { unmount } = render(<FifoInboundModal materials={materials} lotsByItem={{}} onClose={vi.fn()} refresh={vi.fn()} />);
+    expect(screen.getByRole('dialog', { name: 'Barang Masuk FIFO' })).toHaveAttribute('aria-modal', 'true');
+    unmount();
+
+    render(<FifoOutboundModal materials={materials} lotsByItem={{}} onClose={vi.fn()} refresh={vi.fn()} />);
+    expect(screen.getByRole('dialog', { name: 'Barang Keluar FIFO' })).toHaveAttribute('aria-modal', 'true');
+  });
+
   it('validates inbound location then saves and refreshes', async () => {
     const refresh = vi.fn();
     render(<FifoInboundModal materials={materials} lotsByItem={{ i1: [{ location: 'A1.1' }] }} onClose={vi.fn()} refresh={refresh} />);

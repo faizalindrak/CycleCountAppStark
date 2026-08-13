@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { X } from 'lucide-react';
 import MaterialSearchField from './MaterialSearchField';
 import { receiveMaterial } from '../api/materialFifoApi';
 import { localDateInput } from '../lib/dates';
+import { FieldLabel, inputClass, ModalFrame, primaryButtonClass, secondaryButtonClass } from './MaterialFifoUi';
 
 const validDecimal = (value) => /^\d+(\.\d{1,4})?$/.test(value) && Number(value) > 0;
 
@@ -35,6 +35,22 @@ const FifoInboundModal = ({ materials, lotsByItem, onClose, refresh }) => {
     finally { setSaving(false); }
   };
 
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"><form onSubmit={submit} className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-6 shadow-xl"><div className="flex justify-between"><div><h2 className="text-xl font-bold">Barang Masuk FIFO</h2><p className="text-sm text-slate-500">Buat lot baru berdasarkan lokasi dan tanggal masuk.</p></div><button type="button" aria-label="Tutup" onClick={onClose}><X /></button></div><MaterialSearchField items={materials} value={item} onChange={setItem} label="Material masuk"/><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium">Lokasi FIFO<input aria-label="Lokasi FIFO" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="A1.1" className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm font-medium">Qty<input aria-label="Qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm font-medium">Tanggal masuk<input aria-label="Tanggal masuk" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><label className="text-sm font-medium">Catatan<input aria-label="Catatan" value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label></div>{existingLocation && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">Lokasi sudah memiliki lot. Input ini tetap disimpan sebagai lot terpisah.</p>}{error && <p role="alert" className="text-sm text-red-600">{error}</p>}{success && <p className="text-sm text-green-600">{success}</p>}<button disabled={saving} className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{saving ? 'Menyimpan...' : 'Simpan barang masuk'}</button></form></div>;
+  const footer = <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} className={secondaryButtonClass}>Batal</button><button disabled={saving} className={primaryButtonClass}>{saving ? 'Menyimpan...' : 'Simpan barang masuk'}</button></div>;
+
+  return <ModalFrame title="Barang Masuk FIFO" description="Buat lot baru berdasarkan lokasi dan tanggal masuk." onClose={onClose} onSubmit={submit} footer={footer}>
+    <div className="space-y-4">
+      <MaterialSearchField items={materials} value={item} onChange={setItem} label="Material masuk" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <FieldLabel label="Lokasi FIFO"><input aria-label="Lokasi FIFO" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="A1.1" className={inputClass} /></FieldLabel>
+        <FieldLabel label="Qty"><input aria-label="Qty" value={quantity} onChange={(event) => setQuantity(event.target.value)} inputMode="decimal" className={inputClass} /></FieldLabel>
+        <FieldLabel label="Tanggal masuk"><input aria-label="Tanggal masuk" type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} /></FieldLabel>
+        <FieldLabel label="Catatan"><input aria-label="Catatan" value={notes} onChange={(event) => setNotes(event.target.value)} className={inputClass} /></FieldLabel>
+      </div>
+      {existingLocation && <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">Lokasi sudah memiliki lot. Input ini tetap disimpan sebagai lot terpisah.</p>}
+      {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {success && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</p>}
+    </div>
+  </ModalFrame>;
 };
+
 export default FifoInboundModal;
