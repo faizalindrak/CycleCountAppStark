@@ -44,6 +44,14 @@ describe('getCurrentUserProfile', () => {
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
+  it('does not query profiles when the supplied session user has no id', async () => {
+    const { getCurrentUserProfile } = await loadSupabaseModule();
+
+    await expect(getCurrentUserProfile({ user_metadata: {} })).resolves.toBeNull();
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
   it('propagates profile query errors instead of treating them as an inactive profile', async () => {
     const user = { id: 'user-1', user_metadata: {} };
     const queryError = { code: '42501', message: 'permission denied for table profiles' };

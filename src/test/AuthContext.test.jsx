@@ -83,8 +83,9 @@ describe('AuthProvider', () => {
 
   it('clears an invalid persisted session with a browser-local sign out', async () => {
     mocks.getCurrentUserProfile.mockRejectedValue({
-      code: 'bad_jwt',
-      message: 'JWT is invalid',
+      name: 'AuthApiError',
+      status: 403,
+      message: 'Forbidden',
     });
     renderAuth();
 
@@ -95,6 +96,21 @@ describe('AuthProvider', () => {
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
     expect(screen.getByTestId('loading')).toHaveTextContent('false');
+  });
+
+  it('signs out locally when the profile is inactive', async () => {
+    mocks.getCurrentUserProfile.mockResolvedValue({
+      id: 'user-1',
+      status: 'inactive',
+    });
+    renderAuth();
+
+    await act(async () => {
+      await mocks.authCallback('INITIAL_SESSION', { user: { id: 'user-1' } });
+    });
+
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
 
   it('does not destroy the persisted session for a transient profile query error', async () => {
@@ -110,6 +126,23 @@ describe('AuthProvider', () => {
 
     expect(mocks.signOut).not.toHaveBeenCalled();
     expect(screen.getByTestId('user')).toHaveTextContent('none');
+    expect(screen.getByTestId('loading')).toHaveTextContent('false');
+  });
+
+  it('does not treat a profile-table 403 as an invalid auth session', async () => {
+    mocks.getCurrentUserProfile.mockRejectedValue({
+      name: 'PostgrestError',
+      status: 403,
+      code: '42501',
+      message: 'permission denied for table profiles',
+    });
+    renderAuth();
+
+    await act(async () => {
+      await mocks.authCallback('INITIAL_SESSION', { user: { id: 'user-1' } });
+    });
+
+    expect(mocks.signOut).not.toHaveBeenCalled();
     expect(screen.getByTestId('loading')).toHaveTextContent('false');
   });
 

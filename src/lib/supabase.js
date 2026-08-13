@@ -34,7 +34,7 @@ export const handleSupabaseError = (error) => {
 // Avoiding auth.getUser() here prevents a second /auth/v1/user request during
 // INITIAL_SESSION and keeps profile/database errors distinguishable from auth errors.
 export const getCurrentUserProfile = async (user) => {
-  if (!user) return null;
+  if (!user?.id) return null;
 
   const { data: profile, error } = await supabase
     .from('profiles')

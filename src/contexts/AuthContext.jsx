@@ -12,6 +12,7 @@ const INVALID_SESSION_ERROR_CODES = new Set([
 
 const isInvalidSessionError = (error) => {
   if (INVALID_SESSION_ERROR_CODES.has(error?.code)) return true;
+  if (error?.name === 'AuthApiError' && [401, 403].includes(error?.status)) return true;
 
   return /invalid (?:refresh )?token|jwt (?:is )?(?:expired|invalid)|session (?:is )?not found/i
     .test(error?.message || '');
