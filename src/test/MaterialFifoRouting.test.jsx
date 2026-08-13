@@ -24,6 +24,23 @@ import MaterialFifoLayout from '../features/material-fifo/components/MaterialFif
 
 const LocationProbe = () => <span data-testid="pathname">{useLocation().pathname}</span>;
 
+const renderFifoLayout = () => render(
+  <MemoryRouter initialEntries={['/material-fifo/data']}>
+    <Routes>
+      <Route path="/material-fifo/*" element={
+        <MaterialFifoLayout
+          context={{}}
+          openInbound={vi.fn()}
+          openOutbound={vi.fn()}
+          lastRefresh={new Date('2026-08-13T14:43:57')}
+        />
+      }>
+        <Route path="data" element={<p>Data content</p>} />
+      </Route>
+    </Routes>
+  </MemoryRouter>,
+);
+
 describe('Material FIFO navigation', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -49,5 +66,25 @@ describe('Material FIFO navigation', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Data FIFO' }));
     expect(screen.getByTestId('pathname')).toHaveTextContent('/material-fifo/data');
+  });
+
+  it('renders the redesigned FIFO shell with accessible global actions', () => {
+    renderFifoLayout();
+
+    expect(screen.getByTestId('material-fifo-shell')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Data FIFO' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /Barang Masuk/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Barang Keluar/i })).toBeInTheDocument();
+    expect(screen.getByText(/Online.*Diperbarui/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Buka menu' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('opens and closes the responsive navigation drawer', () => {
+    renderFifoLayout();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buka menu' }));
+    expect(screen.getByRole('dialog', { name: 'Navigasi Material FIFO' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Navigasi Material FIFO' })).not.toBeInTheDocument();
   });
 });
