@@ -30,10 +30,10 @@ export const handleSupabaseError = (error) => {
 };
 
 
-// Helper function to get current user profile
-// Helper function to get current user profile
-export const getCurrentUserProfile = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
+// Resolve a profile from the user already supplied by the authenticated session.
+// Avoiding auth.getUser() here prevents a second /auth/v1/user request during
+// INITIAL_SESSION and keeps profile/database errors distinguishable from auth errors.
+export const getCurrentUserProfile = async (user) => {
   if (!user) return null;
 
   const { data: profile, error } = await supabase
@@ -59,16 +59,15 @@ export const getCurrentUserProfile = async () => {
           .select()
           .single();
 
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-          return null;
-        }
+        if (insertError) throw insertError;
 
         return newProfile;
       }
+
+      return null;
     }
-    console.error('Error fetching user profile:', error);
-    return null;
+
+    throw error;
   }
 
   return profile;

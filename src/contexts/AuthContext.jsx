@@ -3,6 +3,20 @@ import { supabase, getCurrentUserProfile } from '../lib/supabase';
 
 const AuthContext = createContext({});
 
+const INVALID_SESSION_ERROR_CODES = new Set([
+  'bad_jwt',
+  'refresh_token_already_used',
+  'refresh_token_not_found',
+  'session_not_found',
+]);
+
+const isInvalidSessionError = (error) => {
+  if (INVALID_SESSION_ERROR_CODES.has(error?.code)) return true;
+
+  return /invalid (?:refresh )?token|jwt (?:is )?(?:expired|invalid)|session (?:is )?not found/i
+    .test(error?.message || '');
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -17,78 +31,74 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
+    let isMounted = true;
+
+    const clearAuthState = () => {
+      if (!isMounted) return;
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+    };
+
+    const signOutLocally = async () => {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    };
+
+    const handleAuthStateChange = async (event, session) => {
+      console.log('Auth event:', event, 'Session:', !!session);
+
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        clearAuthState();
+        return;
+      }
+
+      // A password sign-in validates the profile in signIn() so it can return
+      // an actionable error to the login form without issuing a duplicate query.
+      if (event === 'SIGNED_IN') {
+        console.log('SIGNED_IN event - skipping (handled by signIn function)');
+        return;
+      }
+
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          // Check profile status before setting user
-          const userProfile = await getCurrentUserProfile();
-          
-          if (!userProfile || userProfile.status !== 'active') {
-            // Sign out immediately if inactive
-            await supabase.auth.signOut();
-            setUser(null);
-            setProfile(null);
-          } else {
-            setUser(session.user);
-            setProfile(userProfile);
-          }
+        const userProfile = await getCurrentUserProfile(session.user);
+
+        if (!userProfile || userProfile.status !== 'active') {
+          console.log('Profile inactive or not found, signing out locally');
+          await signOutLocally();
+          clearAuthState();
+          return;
         }
+
+        if (!isMounted) return;
+        setUser(session.user);
+        setProfile(userProfile);
         setLoading(false);
       } catch (error) {
-        console.error('Error getting initial session:', error);
-        setLoading(false);
+        console.error('Error resolving authenticated user profile:', error);
+
+        if (isInvalidSessionError(error)) {
+          try {
+            await signOutLocally();
+          } catch (signOutError) {
+            console.error('Error clearing invalid local session:', signOutError);
+          }
+        }
+
+        clearAuthState();
       }
     };
 
-    getInitialSession();
-
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth event:', event, 'Session:', !!session);
-        
-        if (event === 'SIGNED_OUT' || !session) {
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-
-        // Don't process auth changes during sign in - let signIn handle it
-        if (event === 'SIGNED_IN') {
-          console.log('SIGNED_IN event - skipping (handled by signIn function)');
-          return;
-        }
-
-        // For other events, check profile
-        if (session?.user) {
-          try {
-            const userProfile = await getCurrentUserProfile();
-            
-            if (!userProfile || userProfile.status !== 'active') {
-              console.log('Profile inactive or not found, signing out');
-              await supabase.auth.signOut();
-              setUser(null);
-              setProfile(null);
-            } else {
-              setUser(session.user);
-              setProfile(userProfile);
-            }
-          } catch (error) {
-            console.error('Error in auth state change:', error);
-            await supabase.auth.signOut();
-            setUser(null);
-            setProfile(null);
-          }
-        }
-        
-        setLoading(false);
-      }
+      (event, session) => {
+        void handleAuthStateChange(event, session);
+      },
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = useCallback(async (email, password) => {
@@ -106,20 +116,18 @@ export const AuthProvider = ({ children }) => {
 
       // Check user status immediately after successful authentication
       console.log('Checking user profile...');
-      const userProfile = await getCurrentUserProfile();
+      const userProfile = await getCurrentUserProfile(authData.user);
       console.log('Profile fetched:', userProfile);
 
       if (!userProfile) {
-        console.log('No profile found, signing out');
-        await supabase.auth.signOut();
+        console.log('No profile found');
         throw new Error('User profile not found. Please contact administrator.');
       }
 
       console.log('Profile status:', userProfile.status);
 
       if (userProfile.status !== 'active') {
-        console.log('Profile is not active, signing out');
-        await supabase.auth.signOut();
+        console.log('Profile is not active');
         const statusMessage = userProfile.status === 'inactive'
           ? 'Your account is currently inactive and cannot be used for login.'
           : `Your account status is "${userProfile.status}" and cannot be used for login.`;
@@ -134,8 +142,8 @@ export const AuthProvider = ({ children }) => {
       return { data: authData, error: null };
     } catch (error) {
       console.error('Sign in error:', error);
-      // Make sure to sign out on any error
-      await supabase.auth.signOut();
+      // Clear only this browser's session without revoking other active devices.
+      await supabase.auth.signOut({ scope: 'local' });
       setUser(null);
       setProfile(null);
       return { data: null, error };
@@ -171,7 +179,7 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = useCallback(async () => {
     try {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) throw error;
 
       setUser(null);
