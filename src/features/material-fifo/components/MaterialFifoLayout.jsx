@@ -23,7 +23,7 @@ const MaterialFifoLayout = ({ context, openInbound, openOutbound, lastRefresh })
         <button className="lg:hidden" aria-label="Tutup menu" onClick={() => setOpen(false)}><X /></button>
       </div>
       <nav className="space-y-1 p-3">
-        {links.map(([to, label]) => <NavLink key={to} to={to} onClick={() => setOpen(false)} className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>{label}</NavLink>)}
+        {links.map(([to, label]) => <NavLink key={to} to={`/material-fifo/${to}`} onClick={() => setOpen(false)} className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>{label}</NavLink>)}
         <button onClick={() => navigate('/home')} className="mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"><ArrowLeft className="h-4 w-4" /> Kembali ke Home</button>
       </nav>
     </>
