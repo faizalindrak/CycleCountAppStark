@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,6 +26,14 @@ const lotsByItem = {
     { id: 'old', location: 'A1.1', received_date: '2026-08-01', remaining_qty: '3' },
   ],
 };
+const transactions = [
+  { id: 'tx-in', transaction_type: 'IN', transaction_date: '2026-08-10', quantity: '10', inbound_lot: { location: 'A1.1' }, created_by: 'user-1', item: { sku: 'RM-01', item_name: 'Resin A', uom: 'KG' }, allocations: [] },
+  { id: 'tx-out', transaction_type: 'OUT', transaction_date: '2026-08-12', quantity: '4', selected_location: 'A1.1', created_by: 'user-2', item: { sku: 'RM-02', item_name: 'Resin B', uom: 'KG' }, allocations: [
+    { id: 'a2', quantity: '1', lot: { location: 'A2.1', received_date: '2026-08-05' } },
+    { id: 'a1', quantity: '3', lot: { location: 'A1.1', received_date: '2026-08-01' } },
+  ] },
+];
+const profiles = { 'user-1': { name: 'Siti' }, 'user-2': { name: 'Budi' } };
 
 describe('Material FIFO pages', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -36,6 +44,15 @@ describe('Material FIFO pages', () => {
     expect(screen.getByTestId('kpi-over')).toHaveTextContent('1');
     expect(screen.getByTestId('kpi-no-lot')).toHaveTextContent('3');
     expect(screen.getByText('RM-01')).toBeInTheDocument();
+  });
+
+  it('renders Overview attention items with explicit status text', () => {
+    render(<OverviewPage materials={materials} lotsByItem={lotsByItem} />);
+
+    const attentionTable = screen.getByRole('table', { name: 'Material perlu perhatian' });
+    expect(attentionTable).toBeInTheDocument();
+    expect(within(attentionTable).getByText('Kritis')).toBeInTheDocument();
+    expect(within(attentionTable).getByText('Over')).toBeInTheDocument();
   });
 
   it('searches internal code and orders lots oldest first', () => {
@@ -91,14 +108,7 @@ describe('Material FIFO pages', () => {
 
   it('filters immutable history and expands FIFO allocations', async () => {
     const user = userEvent.setup();
-    const transactions = [
-      { id: 'tx-in', transaction_type: 'IN', transaction_date: '2026-08-10', quantity: '10', inbound_lot: { location: 'A1.1' }, created_by: 'user-1', item: { sku: 'RM-01', item_name: 'Resin A', uom: 'KG' }, allocations: [] },
-      { id: 'tx-out', transaction_type: 'OUT', transaction_date: '2026-08-12', quantity: '4', selected_location: 'A1.1', created_by: 'user-2', item: { sku: 'RM-02', item_name: 'Resin B', uom: 'KG' }, allocations: [
-        { id: 'a2', quantity: '1', lot: { location: 'A2.1', received_date: '2026-08-05' } },
-        { id: 'a1', quantity: '3', lot: { location: 'A1.1', received_date: '2026-08-01' } },
-      ] },
-    ];
-    render(<MemoryRouter><TransactionsPage transactions={transactions} profiles={{ 'user-1': { name: 'Siti' }, 'user-2': { name: 'Budi' } }} /></MemoryRouter>);
+    render(<MemoryRouter><TransactionsPage transactions={transactions} profiles={profiles} /></MemoryRouter>);
     await user.selectOptions(screen.getByLabelText('Tipe transaksi'), 'OUT');
     await user.type(screen.getByPlaceholderText(/Cari SKU, lokasi, atau user/i), 'Budi');
     expect(screen.getByText('RM-02')).toBeInTheDocument();
@@ -108,6 +118,13 @@ describe('Material FIFO pages', () => {
     expect(allocations[0]).toHaveTextContent('A1.1');
     expect(allocations[1]).toHaveTextContent('A2.1');
     expect(screen.queryByRole('button', { name: /hapus|edit/i })).not.toBeInTheDocument();
+  });
+
+  it('renders transaction history in a labelled responsive table', () => {
+    render(<MemoryRouter><TransactionsPage transactions={transactions} profiles={profiles} /></MemoryRouter>);
+
+    expect(screen.getByRole('table', { name: 'Riwayat transaksi FIFO' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'User' })).toBeInTheDocument();
   });
 
   it('creates a complete SKU as Raw Material without an editable category', async () => {
