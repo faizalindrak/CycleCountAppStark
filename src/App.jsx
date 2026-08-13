@@ -10,6 +10,7 @@ import ItemsList from './components/ItemsList';
 import ReportStatus from './components/ReportStatus';
 import HistoryPage from './components/HistoryPage';
 import BacklogReport from './components/BacklogReport';
+import MaterialFifoPage from './features/material-fifo/MaterialFifoPage';
 
 // Protected Route component for authenticated users
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -129,6 +130,15 @@ const App = () => {
             element={
               <ProtectedRoute>
                 <BacklogReport />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/material-fifo/*"
+            element={
+              <ProtectedRoute>
+                <MaterialFifoPage />
               </ProtectedRoute>
             }
           />

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Package, Users, Settings, LogOut, Calculator, AlertTriangle, ClipboardList } from 'lucide-react';
+import { Package, Users, Settings, LogOut, Calculator, AlertTriangle, ClipboardList, Layers3 } from 'lucide-react';
 
 const Home = () => {
   const { user, profile, signOut } = useAuth();
@@ -29,6 +29,10 @@ const Home = () => {
 
   const handleBacklogReport = () => {
     navigate('/backlog');
+  };
+
+  const handleMaterialFifo = () => {
+    navigate('/material-fifo');
   };
 
   return (
@@ -123,6 +127,25 @@ const Home = () => {
                 </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={handleMaterialFifo}
+              aria-label="Buka Material FIFO"
+              className="overflow-hidden rounded-lg bg-white text-left shadow transition-shadow hover:shadow-md"
+            >
+              <div className="p-6">
+                <div className="flex items-center">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-indigo-500">
+                    <Layers3 className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="ml-4 flex-1">
+                    <h3 className="text-lg font-medium text-gray-900">Material FIFO</h3>
+                    <p className="text-sm text-gray-500">Kelola stok dan lot FIFO Raw Material</p>
+                  </div>
+                </div>
+              </div>
+            </button>
 
             {/* Admin Page Card - Only show for admin users */}
             {profile?.role === 'admin' && (

@@ -15,6 +15,18 @@ A warehouse cycle counting application built with React, Vite, Tailwind CSS, and
 - **Export** — Download count data as Excel/CSV
 - **Responsive Design** — Mobile-friendly interface with device detection
 
+## Material FIFO
+
+Material FIFO kini menjadi bagian dari aplikasi warehouse yang sama dan tersedia untuk semua user aktif. Modul ini hanya menggunakan SKU dari kategori `Raw Material` dan menyediakan stok per lot, barang masuk/keluar atomik, histori permanen, pengaturan MIN/MAX, scanner QR/barcode, import, dan export XLSX.
+
+- Jalankan `database/material_fifo_migration.sql` di Supabase SQL Editor dan ikuti `database/material_fifo_setup.md`.
+- Data Material FIFO disimpan di Supabase; integrasi Google Sheets lama tidak digunakan.
+- SKU yang belum tersedia ditambahkan dari **Material FIFO → Kelola SKU** melalui form master lengkap.
+- Template/import MIN/MAX berisi tepat `SKU | MIN | MAX` dan tidak membuat SKU baru.
+- Scanner mendukung kamera native `BarcodeDetector`, fallback ZXing, scanner USB/Bluetooth, dan input manual.
+- Transaksi masuk, keluar, serta import bersifat online-only agar validasi stok dan alokasi FIFO tetap konsisten.
+- App shell dapat dipasang sebagai PWA. Update service worker baru diaktifkan setelah user menekan **Perbarui sekarang**.
+
 ## Tech Stack
 
 | Layer      | Technology                          |
