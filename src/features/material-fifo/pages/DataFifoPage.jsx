@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp, Search, SlidersHorizontal } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import { upsertFifoSettings } from '../api/materialFifoApi';
 import {
@@ -95,6 +95,7 @@ const DataFifoPage = (props) => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
   const [editing, setEditing] = useState(null);
+  const [expandedFifoItems, setExpandedFifoItems] = useState(() => new Set());
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -108,7 +109,7 @@ const DataFifoPage = (props) => {
     item,
     lots: sortLots(lotsByItem[item.item_id] ?? []),
   })), [filtered, lotsByItem]);
-  const fifoColumnCount = Math.max(2, ...rows.map(({ lots }) => lots.length));
+  const fifoColumnCount = 2;
   const columnCount = 7 + fifoColumnCount;
 
   return (
@@ -155,8 +156,17 @@ const DataFifoPage = (props) => {
             <EmptyState colSpan={columnCount}>Tidak ada item ditemukan</EmptyState>
           ) : rows.map(({ item, lots }, index) => {
             const presentation = getStatusPresentation(item.fifo_status);
+            const extraLots = lots.slice(fifoColumnCount);
+            const isExpanded = expandedFifoItems.has(item.item_id);
+            const toggleExtraLots = () => setExpandedFifoItems((current) => {
+              const next = new Set(current);
+              if (next.has(item.item_id)) next.delete(item.item_id);
+              else next.add(item.item_id);
+              return next;
+            });
             return (
-              <tr key={item.item_id} className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}>
+              <React.Fragment key={item.item_id}>
+                <tr className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}>
                 <td className="whitespace-nowrap px-4 py-3.5 font-mono text-[11px] font-medium text-slate-800">{item.sku}</td>
                 <td className="whitespace-nowrap px-4 py-3.5">
                   <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] text-blue-700">{item.item_code || item.internal_product_code || '—'}</span>
@@ -172,21 +182,46 @@ const DataFifoPage = (props) => {
                   <span title={presentation.label} aria-label={presentation.label} className={`ml-1.5 inline-block h-1.5 w-1.5 rounded-full ${presentation.dot}`} />
                 </td>
                 <td className="px-4 py-3.5">
-                  <button
-                    type="button"
-                    aria-label={`Atur MIN/MAX ${item.sku}`}
-                    onClick={() => setEditing(item)}
-                    className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-blue-100 bg-white px-2 py-1 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <SlidersHorizontal className="h-3 w-3" /> Atur
-                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-label={`Atur MIN/MAX ${item.sku}`}
+                      onClick={() => setEditing(item)}
+                      className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-blue-100 bg-white px-2 py-1 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <SlidersHorizontal className="h-3 w-3" /> Atur
+                    </button>
+                    {extraLots.length > 0 && (
+                      <button
+                        type="button"
+                        aria-label={`${isExpanded ? 'Tutup FIFO lainnya' : 'FIFO lainnya'} ${item.sku}`}
+                        aria-expanded={isExpanded}
+                        onClick={toggleExtraLots}
+                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        {isExpanded ? 'Tutup' : `FIFO lainnya (${extraLots.length})`}
+                      </button>
+                    )}
+                  </div>
                 </td>
                 {Array.from({ length: fifoColumnCount }, (_, lotIndex) => (
                   <td key={lotIndex} className="px-4 py-3.5">
                     {lots[lotIndex] ? <LotChip lot={lots[lotIndex]} uom={item.uom} /> : <span className="text-slate-200">—</span>}
                   </td>
                 ))}
-              </tr>
+                </tr>
+                {isExpanded && (
+                  <tr className="border-b border-slate-100 bg-blue-50/35">
+                    <td colSpan={columnCount} className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2" aria-label={`FIFO lainnya ${item.sku}`}>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">FIFO lainnya</span>
+                        {extraLots.map((lot) => <LotChip key={lot.id} lot={lot} uom={item.uom} />)}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             );
           })}
         </tbody>

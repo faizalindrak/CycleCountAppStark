@@ -77,6 +77,31 @@ describe('Material FIFO pages', () => {
     expect(screen.getAllByTestId('lot-chip')[0]).toHaveTextContent('A1.1');
   });
 
+  it('shows only two FIFO lots initially and expands the remaining lots per SKU', async () => {
+    const user = userEvent.setup();
+    const threeLots = {
+      1: [
+        { id: 'oldest', location: 'A1.1', received_date: '2026-08-01', remaining_qty: '3' },
+        { id: 'middle', location: 'A1.2', received_date: '2026-08-02', remaining_qty: '2' },
+        { id: 'newest', location: 'A1.3', received_date: '2026-08-03', remaining_qty: '1' },
+      ],
+    };
+
+    render(<MemoryRouter><DataFifoPage materials={materials} lotsByItem={threeLots} /></MemoryRouter>);
+
+    expect(screen.getByRole('columnheader', { name: 'FIFO 1' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'FIFO 2' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'FIFO 3' })).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('lot-chip')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /FIFO lainnya RM-01/i })).toHaveTextContent('FIFO lainnya (1)');
+    expect(screen.queryByText('A1.3')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /FIFO lainnya RM-01/i }));
+    expect(screen.getAllByTestId('lot-chip')).toHaveLength(3);
+    expect(screen.getByText(/A1\.3/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Tutup FIFO lainnya RM-01/i })).toBeInTheDocument();
+  });
+
   it('shows one table empty state after filtering', () => {
     render(<MemoryRouter><DataFifoPage materials={materials} lotsByItem={lotsByItem} /></MemoryRouter>);
 
