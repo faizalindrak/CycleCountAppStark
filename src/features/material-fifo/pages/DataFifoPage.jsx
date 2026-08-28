@@ -87,6 +87,50 @@ const sortLots = (lots) => [...lots].sort((a, b) =>
   `${a.received_date}|${a.created_at ?? ''}|${a.id}`.localeCompare(`${b.received_date}|${b.created_at ?? ''}|${b.id}`),
 );
 
+const FifoLotsPopover = ({ item, lots, visible, onToggle, onHover, onLeave }) => (
+  <div
+    className="relative inline-flex"
+    onMouseEnter={onHover}
+    onMouseLeave={onLeave}
+    onFocus={onHover}
+    onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) onLeave();
+    }}
+  >
+    <button
+      type="button"
+      aria-label={`FIFO lainnya ${item.sku}`}
+      aria-haspopup="dialog"
+      aria-expanded={visible}
+      onClick={onToggle}
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
+      {visible ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      FIFO lainnya ({lots.length - 2})
+    </button>
+    {visible && (
+      <div
+        role="dialog"
+        aria-label={`Semua FIFO ${item.sku}`}
+        className="absolute right-0 top-full z-40 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-xl ring-1 ring-slate-900/5"
+      >
+        <div className="border-b border-slate-100 bg-slate-50 px-3 py-2.5">
+          <p className="text-xs font-bold text-slate-900">{item.item_name}</p>
+          <p className="mt-0.5 font-mono text-[10px] text-slate-500">{item.sku} · {lots.length} FIFO</p>
+        </div>
+        <div className="material-fifo-scrollbar max-h-64 space-y-1.5 overflow-y-auto p-2.5">
+          {lots.map((lot, index) => (
+            <div key={lot.id} className="flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
+              <span className="w-12 shrink-0 text-[10px] font-semibold text-slate-500">FIFO {index + 1}</span>
+              <LotChip lot={lot} uom={item.uom} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+);
+
 const DataFifoPage = (props) => {
   const outlet = useOutletContext() ?? {};
   const materials = props.materials ?? outlet.materials ?? [];
@@ -95,7 +139,8 @@ const DataFifoPage = (props) => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
   const [editing, setEditing] = useState(null);
-  const [expandedFifoItems, setExpandedFifoItems] = useState(() => new Set());
+  const [openFifoItemId, setOpenFifoItemId] = useState(null);
+  const [hoveredFifoItemId, setHoveredFifoItemId] = useState(null);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -157,16 +202,9 @@ const DataFifoPage = (props) => {
           ) : rows.map(({ item, lots }, index) => {
             const presentation = getStatusPresentation(item.fifo_status);
             const extraLots = lots.slice(fifoColumnCount);
-            const isExpanded = expandedFifoItems.has(item.item_id);
-            const toggleExtraLots = () => setExpandedFifoItems((current) => {
-              const next = new Set(current);
-              if (next.has(item.item_id)) next.delete(item.item_id);
-              else next.add(item.item_id);
-              return next;
-            });
+            const isPopupVisible = openFifoItemId === item.item_id || hoveredFifoItemId === item.item_id;
             return (
-              <React.Fragment key={item.item_id}>
-                <tr className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}>
+              <tr key={item.item_id} className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}>
                 <td className="whitespace-nowrap px-4 py-3.5 font-mono text-[11px] font-medium text-slate-800">{item.sku}</td>
                 <td className="whitespace-nowrap px-4 py-3.5">
                   <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] text-blue-700">{item.item_code || item.internal_product_code || '—'}</span>
@@ -182,46 +220,33 @@ const DataFifoPage = (props) => {
                   <span title={presentation.label} aria-label={presentation.label} className={`ml-1.5 inline-block h-1.5 w-1.5 rounded-full ${presentation.dot}`} />
                 </td>
                 <td className="px-4 py-3.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      aria-label={`Atur MIN/MAX ${item.sku}`}
-                      onClick={() => setEditing(item)}
-                      className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-blue-100 bg-white px-2 py-1 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <SlidersHorizontal className="h-3 w-3" /> Atur
-                    </button>
-                    {extraLots.length > 0 && (
-                      <button
-                        type="button"
-                        aria-label={`${isExpanded ? 'Tutup FIFO lainnya' : 'FIFO lainnya'} ${item.sku}`}
-                        aria-expanded={isExpanded}
-                        onClick={toggleExtraLots}
-                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        {isExpanded ? 'Tutup' : `FIFO lainnya (${extraLots.length})`}
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    aria-label={`Atur MIN/MAX ${item.sku}`}
+                    onClick={() => setEditing(item)}
+                    className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-blue-100 bg-white px-2 py-1 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <SlidersHorizontal className="h-3 w-3" /> Atur
+                  </button>
                 </td>
                 {Array.from({ length: fifoColumnCount }, (_, lotIndex) => (
                   <td key={lotIndex} className="px-4 py-3.5">
-                    {lots[lotIndex] ? <LotChip lot={lots[lotIndex]} uom={item.uom} /> : <span className="text-slate-200">—</span>}
+                    <div className="flex min-w-max items-center gap-1.5">
+                      {lots[lotIndex] ? <LotChip lot={lots[lotIndex]} uom={item.uom} /> : <span className="text-slate-200">—</span>}
+                      {lotIndex === fifoColumnCount - 1 && extraLots.length > 0 && (
+                        <FifoLotsPopover
+                          item={item}
+                          lots={lots}
+                          visible={isPopupVisible}
+                          onToggle={() => setOpenFifoItemId((current) => current === item.item_id ? null : item.item_id)}
+                          onHover={() => setHoveredFifoItemId(item.item_id)}
+                          onLeave={() => setHoveredFifoItemId(null)}
+                        />
+                      )}
+                    </div>
                   </td>
                 ))}
-                </tr>
-                {isExpanded && (
-                  <tr className="border-b border-slate-100 bg-blue-50/35">
-                    <td colSpan={columnCount} className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-2" aria-label={`FIFO lainnya ${item.sku}`}>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">FIFO lainnya</span>
-                        {extraLots.map((lot) => <LotChip key={lot.id} lot={lot} uom={item.uom} />)}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
+              </tr>
             );
           })}
         </tbody>

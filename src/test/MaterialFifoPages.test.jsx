@@ -77,7 +77,7 @@ describe('Material FIFO pages', () => {
     expect(screen.getAllByTestId('lot-chip')[0]).toHaveTextContent('A1.1');
   });
 
-  it('shows only two FIFO lots initially and expands the remaining lots per SKU', async () => {
+  it('shows the other FIFO trigger beside FIFO 2 and opens all lots in a material popover', async () => {
     const user = userEvent.setup();
     const threeLots = {
       1: [
@@ -93,13 +93,24 @@ describe('Material FIFO pages', () => {
     expect(screen.getByRole('columnheader', { name: 'FIFO 2' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'FIFO 3' })).not.toBeInTheDocument();
     expect(screen.getAllByTestId('lot-chip')).toHaveLength(2);
-    expect(screen.getByRole('button', { name: /FIFO lainnya RM-01/i })).toHaveTextContent('FIFO lainnya (1)');
-    expect(screen.queryByText('A1.3')).not.toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: /FIFO lainnya RM-01/i });
+    expect(trigger).toHaveTextContent('FIFO lainnya (1)');
+    expect(trigger.closest('td')).toHaveTextContent('A1.2');
+    expect(screen.queryByRole('dialog', { name: 'Semua FIFO RM-01' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /FIFO lainnya RM-01/i }));
-    expect(screen.getAllByTestId('lot-chip')).toHaveLength(3);
-    expect(screen.getByText(/A1\.3/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Tutup FIFO lainnya RM-01/i })).toBeInTheDocument();
+    await user.hover(trigger);
+    const hoverPopover = screen.getByRole('dialog', { name: 'Semua FIFO RM-01' });
+    expect(within(hoverPopover).getByText('Resin A')).toBeInTheDocument();
+    expect(within(hoverPopover).getByText('FIFO 3')).toBeInTheDocument();
+    expect(within(hoverPopover).getByText(/A1\.3/)).toBeInTheDocument();
+
+    await user.unhover(trigger);
+    expect(screen.queryByRole('dialog', { name: 'Semua FIFO RM-01' })).not.toBeInTheDocument();
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Semua FIFO RM-01' })).toBeInTheDocument();
+    await user.click(trigger);
+    await user.unhover(trigger);
+    expect(screen.queryByRole('dialog', { name: 'Semua FIFO RM-01' })).not.toBeInTheDocument();
   });
 
   it('shows one table empty state after filtering', () => {
