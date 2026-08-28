@@ -203,6 +203,11 @@ const DataFifoPage = (props) => {
             const presentation = getStatusPresentation(item.fifo_status);
             const extraLots = lots.slice(fifoColumnCount);
             const isPopupVisible = openFifoItemId === item.item_id || hoveredFifoItemId === item.item_id;
+            const togglePopup = () => {
+              const isClosing = openFifoItemId === item.item_id;
+              setOpenFifoItemId(isClosing ? null : item.item_id);
+              if (isClosing) setHoveredFifoItemId(null);
+            };
             return (
               <tr key={item.item_id} className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}>
                 <td className="whitespace-nowrap px-4 py-3.5 font-mono text-[11px] font-medium text-slate-800">{item.sku}</td>
@@ -238,7 +243,7 @@ const DataFifoPage = (props) => {
                           item={item}
                           lots={lots}
                           visible={isPopupVisible}
-                          onToggle={() => setOpenFifoItemId((current) => current === item.item_id ? null : item.item_id)}
+                          onToggle={togglePopup}
                           onHover={() => setHoveredFifoItemId(item.item_id)}
                           onLeave={() => setHoveredFifoItemId(null)}
                         />

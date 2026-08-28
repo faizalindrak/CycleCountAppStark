@@ -109,8 +109,15 @@ describe('Material FIFO pages', () => {
     await user.click(trigger);
     expect(screen.getByRole('dialog', { name: 'Semua FIFO RM-01' })).toBeInTheDocument();
     await user.click(trigger);
-    await user.unhover(trigger);
     expect(screen.queryByRole('dialog', { name: 'Semua FIFO RM-01' })).not.toBeInTheDocument();
+  });
+
+  it('keeps FIFO dates hidden until the lot card is hovered', () => {
+    render(<MemoryRouter><DataFifoPage materials={materials} lotsByItem={lotsByItem} /></MemoryRouter>);
+
+    const date = within(screen.getAllByTestId('lot-chip')[0]).getByTestId('lot-date');
+    expect(date).toHaveTextContent('2026-08-01');
+    expect(date).toHaveClass('opacity-0', 'group-hover:opacity-100');
   });
 
   it('shows one table empty state after filtering', () => {

@@ -61,8 +61,18 @@ export const StatusBadge = ({ status, showDot = false }) => {
 };
 
 export const LotChip = ({ lot, uom }) => (
-  <span data-testid="lot-chip" className="inline-flex whitespace-nowrap rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 font-mono text-[10px] leading-4 text-indigo-700">
-    {lot.location} · {Number(lot.remaining_qty).toLocaleString('id-ID')} {uom} · {lot.received_date}
+  <span
+    data-testid="lot-chip"
+    aria-label={`${lot.location} · ${Number(lot.remaining_qty).toLocaleString('id-ID')} ${uom} · ${lot.received_date}`}
+    className="group relative inline-flex whitespace-nowrap rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 font-mono text-[10px] leading-4 text-indigo-700"
+  >
+    <span>{lot.location} · {Number(lot.remaining_qty).toLocaleString('id-ID')} {uom}</span>
+    <span
+      data-testid="lot-date"
+      className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 rounded bg-slate-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+    >
+      {lot.received_date}
+    </span>
   </span>
 );
 
