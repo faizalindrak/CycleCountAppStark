@@ -46,13 +46,17 @@ describe('Material FIFO pages', () => {
     expect(screen.getByText('RM-01')).toBeInTheDocument();
   });
 
-  it('renders Overview attention items with explicit status text', () => {
+  it('separates Overview critical and over items into dedicated tables', () => {
     render(<OverviewPage materials={materials} lotsByItem={lotsByItem} />);
 
-    const attentionTable = screen.getByRole('table', { name: 'Material perlu perhatian' });
-    expect(attentionTable).toBeInTheDocument();
-    expect(within(attentionTable).getByText('Kritis')).toBeInTheDocument();
-    expect(within(attentionTable).getByText('Over')).toBeInTheDocument();
+    const criticalTable = screen.getByRole('table', { name: 'Material kritis' });
+    const overTable = screen.getByRole('table', { name: 'Material over' });
+    expect(within(criticalTable).getByText('Kritis')).toBeInTheDocument();
+    expect(within(criticalTable).getByText('RM-01')).toBeInTheDocument();
+    expect(within(criticalTable).queryByText('RM-02')).not.toBeInTheDocument();
+    expect(within(overTable).getByText('Over')).toBeInTheDocument();
+    expect(within(overTable).getByText('RM-02')).toBeInTheDocument();
+    expect(within(overTable).queryByText('RM-01')).not.toBeInTheDocument();
   });
 
   it('searches internal code and orders lots oldest first', () => {

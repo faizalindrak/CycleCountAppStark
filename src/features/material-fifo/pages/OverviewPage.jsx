@@ -3,6 +3,34 @@ import { AlertTriangle, Boxes, CircleCheck, CircleHelp, Layers3, TrendingUp } fr
 import { useOutletContext } from 'react-router-dom';
 import { EmptyState, PageHeader, Panel, StatusBadge, TableShell } from '../components/MaterialFifoUi';
 
+const AttentionTable = ({ label, title, description, items, emptyMessage }) => (
+  <section className="min-w-0 space-y-2" aria-labelledby={`${label}-heading`}>
+    <div>
+      <h3 id={`${label}-heading`} className="text-sm font-semibold text-slate-900">{title}</h3>
+      <p className="text-xs text-slate-500">{description}</p>
+    </div>
+    <TableShell label={label} minWidth="520px">
+      <thead>
+        <tr className="border-b border-slate-200 bg-slate-50/80">
+          {['SKU', 'Nama Material', 'Stock', 'Status'].map((heading) => (
+            <th key={heading} scope="col" className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${heading === 'Stock' ? 'text-right' : 'text-left'}`}>{heading}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {!items.length ? <EmptyState colSpan={4}>{emptyMessage}</EmptyState> : items.map((item, index) => (
+          <tr key={item.item_id} className={`border-b border-slate-100 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}>
+            <td className="px-4 py-3.5 font-mono text-[11px] font-medium text-slate-800">{item.sku}</td>
+            <td className="px-4 py-3.5 font-medium text-slate-800">{item.item_name}</td>
+            <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-slate-900">{Number(item.stock_qty).toLocaleString('id-ID')} <span className="text-[10px] font-normal text-slate-400">{item.uom}</span></td>
+            <td className="px-4 py-3.5"><StatusBadge status={item.fifo_status} showDot /></td>
+          </tr>
+        ))}
+      </tbody>
+    </TableShell>
+  </section>
+);
+
 const OverviewPage = (props) => {
   const outlet = useOutletContext() ?? {};
   const materials = props.materials ?? outlet.materials ?? [];
@@ -16,7 +44,8 @@ const OverviewPage = (props) => {
     { label: 'Tanpa Lot', value: materials.filter((material) => !(lotsByItem[material.item_id]?.length)).length, key: 'no-lot', icon: Layers3, accent: 'text-orange-600', iconBg: 'bg-orange-50' },
     { label: 'MIN/MAX Belum Diset', value: count('NOT_CONFIGURED'), key: 'not-configured', icon: CircleHelp, accent: 'text-slate-500', iconBg: 'bg-slate-100' },
   ];
-  const attention = materials.filter((material) => ['CRITICAL', 'OVER'].includes(material.fifo_status));
+  const criticalItems = materials.filter((material) => material.fifo_status === 'CRITICAL');
+  const overItems = materials.filter((material) => material.fifo_status === 'OVER');
 
   return (
     <section className="space-y-5">
@@ -37,27 +66,24 @@ const OverviewPage = (props) => {
       <div className="space-y-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Perlu Perhatian</h3>
-          <p className="text-xs text-slate-500">Material dengan stok kritis atau melebihi batas maksimum.</p>
+          <p className="text-xs text-slate-500">Material dengan stok kritis dan material yang melebihi batas maksimum.</p>
         </div>
-        <TableShell label="Material perlu perhatian" minWidth="640px">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/80">
-              {['SKU', 'Nama Material', 'Stock', 'Status'].map((heading) => (
-                <th key={heading} scope="col" className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${heading === 'Stock' ? 'text-right' : 'text-left'}`}>{heading}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {!attention.length ? <EmptyState colSpan={4}>Tidak ada material kritis atau over.</EmptyState> : attention.map((item, index) => (
-              <tr key={item.item_id} className={`border-b border-slate-100 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}>
-                <td className="px-4 py-3.5 font-mono text-[11px] font-medium text-slate-800">{item.sku}</td>
-                <td className="px-4 py-3.5 font-medium text-slate-800">{item.item_name}</td>
-                <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-slate-900">{Number(item.stock_qty).toLocaleString('id-ID')} <span className="text-[10px] font-normal text-slate-400">{item.uom}</span></td>
-                <td className="px-4 py-3.5"><StatusBadge status={item.fifo_status} showDot /></td>
-              </tr>
-            ))}
-          </tbody>
-        </TableShell>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <AttentionTable
+            label="Material kritis"
+            title="Item Kritis"
+            description="Stok berada di atau di bawah batas minimum."
+            items={criticalItems}
+            emptyMessage="Tidak ada material kritis."
+          />
+          <AttentionTable
+            label="Material over"
+            title="Item Over"
+            description="Stok melebihi batas maksimum."
+            items={overItems}
+            emptyMessage="Tidak ada material over."
+          />
+        </div>
       </div>
     </section>
   );
