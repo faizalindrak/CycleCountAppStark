@@ -5,28 +5,28 @@ const StatusList = ({ title, items, onFollowUpStatus, getStatusIcon, getFollowUp
   const [expanded, setExpanded] = useState(new Set());
   if (items.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center">
-        <div className="text-gray-400 mb-4">
+      <div className="rounded-3xl border border-blue-100/80 bg-white/80 p-8 text-center shadow-[0_10px_28px_rgba(37,99,235,0.06)]">
+        <div className="mb-4 text-blue-300">
           {title === 'Open Status' && <Clock className="h-12 w-12 mx-auto" />}
           {title === 'On Progress Status' && <Clock className="h-12 w-12 mx-auto" />}
           {title === 'Closed Status' && <CheckCircle className="h-12 w-12 mx-auto" />}
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
-        <p className="text-gray-500">{emptyMessage}</p>
+        <h3 className="mb-2 text-lg font-bold tracking-tight text-slate-900">{title}</h3>
+        <p className="text-sm text-slate-500">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-500">{items.length} item{items.length !== 1 ? 's' : ''}</p>
+    <div className="overflow-hidden rounded-3xl border border-blue-100/80 bg-white shadow-[0_10px_28px_rgba(37,99,235,0.07)]">
+      <div className="border-b border-blue-100/80 bg-gradient-to-r from-blue-50/80 to-white px-6 py-5">
+        <h3 className="text-lg font-bold tracking-tight text-slate-900">{title}</h3>
+        <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{items.length} item{items.length !== 1 ? 's' : ''}</p>
       </div>
 
-      <div className="divide-y divide-gray-200">
+      <div className="divide-y divide-blue-50">
         {items.map((item) => (
-          <div key={item.id} className="p-4 hover:bg-gray-50">
+          <div key={item.id} className="p-4 transition-colors hover:bg-blue-50/60">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3 flex-1 min-w-0">
                 <input
@@ -36,12 +36,12 @@ const StatusList = ({ title, items, onFollowUpStatus, getStatusIcon, getFollowUp
                     e.stopPropagation();
                     onSelectionChange(item.id, e.target.checked);
                   }}
-                  className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-2 min-w-0">
                     {getStatusIcon(item.inventory_status)}
-                    <h4 className="text-base font-medium text-gray-900 break-words leading-tight">{item.item_name}</h4>
+                  <h4 className="break-words text-base font-semibold leading-tight text-slate-900">{item.item_name}</h4>
                     {getFollowUpIcon(item.follow_up_status)}
                   </div>
                   {/* Details hidden by default; shown in accordion below */}
@@ -86,7 +86,7 @@ const StatusList = ({ title, items, onFollowUpStatus, getStatusIcon, getFollowUp
                     return next;
                   });
                 }}
-                className="ml-3 text-gray-500 hover:text-gray-700 p-1 rounded"
+                className="ml-3 rounded-lg p-1 text-slate-400 transition hover:bg-blue-100 hover:text-blue-700"
                 aria-label={expanded.has(item.id) ? 'Collapse details' : 'Expand details'}
               >
                 {expanded.has(item.id) ? (

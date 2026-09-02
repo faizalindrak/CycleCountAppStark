@@ -81,6 +81,16 @@ describe('Material FIFO pages', () => {
     expect(screen.getAllByTestId('lot-chip')[0]).toHaveTextContent('A1.1');
   });
 
+  it('stagger-fades Data FIFO rows with a 70ms delay per item', () => {
+    render(<MemoryRouter><DataFifoPage materials={materials} lotsByItem={lotsByItem} /></MemoryRouter>);
+
+    const rows = screen.getAllByTestId('material-fifo-row');
+    expect(rows[0]).toHaveClass('material-fifo-row');
+    expect(rows[0]).toHaveStyle({ animationDelay: '0ms' });
+    expect(rows[1]).toHaveStyle({ animationDelay: '70ms' });
+    expect(rows[2]).toHaveStyle({ animationDelay: '140ms' });
+  });
+
   it('shows the other FIFO trigger beside FIFO 2 and opens all lots in a material popover', async () => {
     const user = userEvent.setup();
     const threeLots = {

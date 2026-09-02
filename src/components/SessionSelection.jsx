@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Users, Calendar, Package2, Clock, LogOut, Home, AlertCircle } from 'lucide-react';
+import { AlertCircle, ArrowUpRight, BadgeCheck, Calendar, ChevronRight, ClipboardList, Clock, Home, LogOut, Package2, PackageCheck, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // Countdown Timer Component
@@ -160,160 +160,110 @@ const SessionSelection = () => {
     navigate('/home');
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-100">
-        <div className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-4">
-              <h1 className="text-2xl font-bold text-gray-900">Select Session</h1>
-              <div className="flex items-center space-x-4">
-                <span className="text-gray-600 hidden sm:block">
-                  Welcome, {user?.user_metadata?.name || user?.email}
-                </span>
-                <button
-                  onClick={handleGoHome}
-                  className="text-blue-600 hover:text-blue-800"
-                  title="Go to Home"
-                >
-                  <Home className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={handleSignOut}
-                  className="text-red-600 hover:text-red-800"
-                  title="Logout"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </div>
+  const displayName = user?.user_metadata?.name || user?.email || 'Operator';
+
+  const shell = (children) => (
+    <div className="relative min-h-screen overflow-hidden bg-[#f5f8ff] text-slate-900">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -left-32 -top-36 h-96 w-96 rounded-full bg-blue-200/45 blur-3xl" />
+        <div className="absolute -bottom-48 -right-28 h-[32rem] w-[32rem] rounded-full bg-indigo-200/35 blur-3xl" />
+        <PackageCheck className="absolute -right-24 top-20 h-[30rem] w-[30rem] rotate-12 text-blue-900/[0.035]" strokeWidth={1} />
+      </div>
+      <header className="relative border-b border-blue-100/80 bg-white/85 shadow-[0_8px_28px_rgba(37,99,235,0.06)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#215bea] text-white shadow-lg shadow-blue-200">
+              <PackageCheck aria-hidden="true" className="h-6 w-6" strokeWidth={1.8} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg font-black tracking-[-0.04em] text-slate-950">WMS</p>
+              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Warehouse Management System</p>
             </div>
           </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="hidden max-w-[180px] truncate text-sm font-medium text-slate-500 sm:block">{displayName}</span>
+            <button type="button" onClick={handleGoHome} aria-label="Kembali ke dashboard" className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-700 transition hover:-translate-y-0.5 hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100" title="Kembali ke dashboard">
+              <Home aria-hidden="true" className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={handleSignOut} aria-label="Keluar" className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-blue-100" title="Keluar">
+              <LogOut aria-hidden="true" className="h-4 w-4" />
+              <span className="hidden sm:block">Keluar</span>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center justify-center py-8">
-          <div className="spinner"></div>
+      </header>
+      {children}
+    </div>
+  );
+
+  if (loading) {
+    return shell(
+      <main className="relative mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-5 py-10">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-blue-100 bg-white/85 px-10 py-9 text-center shadow-[0_16px_38px_rgba(37,99,235,0.08)]">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><RefreshCw className="h-7 w-7 animate-spin" /></span>
+          <p className="text-sm font-semibold text-slate-600">Memuat sesi Cycle Count...</p>
         </div>
-      </div>
+      </main>,
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-gray-900">Select Session</h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-600 hidden sm:block">
-                Welcome, {user?.user_metadata?.name || user?.email}
-              </span>
-              <button
-                onClick={handleGoHome}
-                className="text-blue-600 hover:text-blue-800"
-                title="Go to Home"
-              >
-                <Home className="h-5 w-5" />
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="text-red-600 hover:text-red-800"
-                title="Logout"
-              >
-                <LogOut className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
+  return shell(
+    <main className="relative mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
+      <section className="mb-8 flex flex-col justify-between gap-6 sm:mb-10 sm:flex-row sm:items-end">
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-blue-600">Cycle Count workspace</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Pilih Sesi Cycle Count</h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 sm:text-base">Pilih sesi aktif untuk mulai menghitung item di area gudang Anda.</p>
         </div>
-      </div>
+        <div className="flex w-fit items-center gap-3 rounded-2xl border border-blue-100 bg-white/80 px-4 py-3 shadow-sm">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><ClipboardList className="h-5 w-5" /></span>
+          <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sesi tersedia</p><p className="text-sm font-bold text-slate-800">{sessions.length} sesi aktif</p></div>
+        </div>
+      </section>
 
-      <main className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
-        {error && (
-          <div className="mb-6 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+      {error && <div role="alert" className="mb-6 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"><AlertCircle className="h-5 w-5 shrink-0" />{error}</div>}
 
-        <div className="grid gap-4">
-          {sessions.length === 0 ? (
-            <div className="text-center py-8">
-              <ClipboardList className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <p className="text-gray-500">
-                {error || 'No active sessions available.'}
-              </p>
-            </div>
-          ) : (
-            sessions.map((session) => {
-              const hasTimeWindow = session.valid_from && session.valid_until;
-              const now = new Date();
-              const validUntil = session.valid_until ? new Date(session.valid_until) : null;
-              const timeUntilClose = validUntil ? validUntil - now : null;
-              const showWarning = timeUntilClose && timeUntilClose < 30 * 60 * 1000; // Less than 30 minutes
+      {sessions.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/75 px-6 py-16 text-center shadow-sm">
+          <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-500"><ClipboardList className="h-8 w-8" /></span>
+          <h2 className="text-lg font-bold text-slate-800">Belum ada sesi aktif</h2>
+          <p className="mt-1 max-w-sm text-sm text-slate-500">{error || 'Sesi Cycle Count yang aktif akan muncul di sini.'}</p>
+        </div>
+      ) : (
+        <section className="grid gap-5 md:grid-cols-2" aria-label="Daftar sesi Cycle Count">
+          {sessions.map((session) => {
+            const hasTimeWindow = session.valid_from && session.valid_until;
+            const now = new Date();
+            const validUntil = session.valid_until ? new Date(session.valid_until) : null;
+            const timeUntilClose = validUntil ? validUntil - now : null;
+            const showWarning = timeUntilClose && timeUntilClose < 30 * 60 * 1000;
 
-              return (
-                <div key={session.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
-                  {showWarning && (
-                    <div className="bg-orange-100 border-l-4 border-orange-500 px-4 py-2 rounded-t-lg flex items-center">
-                      <AlertCircle className="h-4 w-4 text-orange-700 mr-2" />
-                      <span className="text-sm text-orange-700 font-medium">
-                        Session closing soon!
-                      </span>
+            return (
+              <article key={session.id} className="relative overflow-hidden rounded-3xl border border-blue-100/80 bg-white shadow-[0_10px_28px_rgba(37,99,235,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_38px_rgba(37,99,235,0.16)]">
+                <span className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${showWarning ? 'from-amber-400 to-orange-500' : 'from-blue-500 to-cyan-400'}`} />
+                {showWarning && <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50 px-6 py-2.5 text-xs font-semibold text-amber-700"><AlertCircle className="h-4 w-4" />Sesi segera berakhir</div>}
+                <button type="button" aria-label={`Buka sesi ${session.name}`} onClick={() => navigate(`/counting/${session.id}`)} className="group block w-full p-6 text-left focus:outline-none focus:ring-4 focus:ring-inset focus:ring-blue-100">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Package2 className="h-5 w-5" /></span>
+                      <div className="min-w-0"><h2 className="truncate text-lg font-bold tracking-tight text-slate-900">{session.name}</h2><p className="mt-1 text-xs font-medium uppercase tracking-wider text-slate-400">{session.type}</p></div>
                     </div>
-                  )}
-                  <div
-                    onClick={() => navigate(`/counting/${session.id}`)}
-                    className="p-6 cursor-pointer"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {session.name}
-                        </h3>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            {session.type}
-                          </span>
-                          <span className="flex items-center">
-                            <Package2 className="h-4 w-4 mr-1" />
-                            Items to count
-                          </span>
-                          {session.scheduled_date && (
-                            <span className="flex items-center">
-                              <Calendar className="h-4 w-4 mr-1" />
-                              {new Date(session.scheduled_date).toLocaleDateString()}
-                            </span>
-                          )}
-                          {hasTimeWindow && (
-                            <span className="flex items-center">
-                              <Clock className="h-4 w-4 mr-1" />
-                              {new Date(session.valid_from).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})} - {new Date(session.valid_until).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Countdown Timer */}
-                        {hasTimeWindow && validUntil && (
-                          <div className="mt-3 flex items-center">
-                            <Clock className="h-4 w-4 mr-2 text-gray-600" />
-                            <CountdownTimer targetTime={session.valid_until} />
-                          </div>
-                        )}
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-sm shrink-0 ${
-                        session.status === 'active'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {session.status}
-                      </span>
-                    </div>
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${session.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{session.status}</span>
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </main>
-    </div>
+                  <div className="mt-6 flex flex-wrap gap-2 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5"><Package2 className="h-3.5 w-3.5 text-blue-500" />Items to count</span>
+                    {session.scheduled_date && <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5"><Calendar className="h-3.5 w-3.5 text-blue-500" />{new Date(session.scheduled_date).toLocaleDateString()}</span>}
+                    {hasTimeWindow && <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5"><Clock className="h-3.5 w-3.5 text-blue-500" />{new Date(session.valid_from).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} - {new Date(session.valid_until).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>}
+                  </div>
+                  {hasTimeWindow && validUntil && <div className="mt-5 flex items-center justify-between rounded-xl bg-blue-50/70 px-3 py-2 text-xs"><span className="flex items-center gap-1.5 font-semibold text-blue-700"><Clock className="h-4 w-4" />Batas waktu</span><CountdownTimer targetTime={session.valid_until} /></div>}
+                  <div className="mt-5 flex items-center justify-end gap-1 text-sm font-bold text-blue-600">Mulai menghitung<ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></div>
+                </button>
+              </article>
+            );
+          })}
+        </section>
+      )}
+    </main>,
   );
 };
 

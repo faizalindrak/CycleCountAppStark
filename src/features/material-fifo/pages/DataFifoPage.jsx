@@ -209,7 +209,12 @@ const DataFifoPage = (props) => {
               if (isClosing) setHoveredFifoItemId(null);
             };
             return (
-              <tr key={item.item_id} className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}>
+              <tr
+                key={item.item_id}
+                data-testid="material-fifo-row"
+                style={{ animationDelay: `${Math.min(index * 70, 700)}ms` }}
+                className={`material-fifo-row group border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${index % 2 ? 'bg-slate-50/45' : 'bg-white'}`}
+              >
                 <td className="whitespace-nowrap px-4 py-3.5 font-mono text-[11px] font-medium text-slate-800">{item.sku}</td>
                 <td className="whitespace-nowrap px-4 py-3.5">
                   <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] text-blue-700">{item.item_code || item.internal_product_code || '—'}</span>

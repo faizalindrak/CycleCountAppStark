@@ -228,23 +228,24 @@ const BacklogReport = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div data-testid="backlog-report-page" className="wms-page-shell text-slate-900">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 border-x border-blue-100/50 bg-white/90 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-              <ClipboardList className="h-6 w-6 text-amber-700" />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-200">
+              <ClipboardList className="h-6 w-6" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Report Backlog</h1>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600">Warehouse insight</p>
+              <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Report Backlog</h1>
               <p className="truncate text-sm text-slate-500">Pencatatan transaksi inventory backlog</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/home')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Kembali ke dashboard">
+            <button onClick={() => navigate('/home')} className="rounded-xl p-2.5 text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" title="Kembali ke dashboard">
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <button onClick={handleLogout} className="flex items-center gap-2 rounded-lg p-2 text-red-600 hover:bg-red-50" title="Logout">
+            <button onClick={handleLogout} className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50/60 p-2.5 text-red-600 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-400" title="Logout">
               <LogOut className="h-5 w-5" />
               <span className="hidden sm:inline">Logout</span>
             </button>
@@ -252,24 +253,24 @@ const BacklogReport = () => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+      <main className="relative mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
         {message && (
-          <div className={`rounded-lg border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`} role="alert">
+          <div className={`rounded-2xl border px-4 py-3 text-sm shadow-sm ${message.type === 'success' ? 'border-emerald-200 bg-emerald-50/90 text-emerald-800' : 'border-red-200 bg-red-50/90 text-red-800'}`} role="alert">
             {message.text}
           </div>
         )}
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+        <section className="wms-card-lift overflow-hidden rounded-3xl border border-blue-100/80 bg-white/95 shadow-xl shadow-blue-100/40">
+          <div className="border-b border-blue-100/70 bg-gradient-to-r from-blue-50/90 via-white to-cyan-50/70 px-5 py-5 sm:px-6">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <Plus className="h-5 w-5 text-amber-600" /> Transaksi Backlog Baru
+              <span className="rounded-xl bg-blue-600 p-1.5 text-white shadow-md shadow-blue-200"><Plus className="h-4 w-4" /></span> Transaksi Backlog Baru
             </h2>
             <p className="mt-1 text-sm text-slate-500">Tanggal otomatis terisi sesuai tanggal hari ini.</p>
           </div>
           <form onSubmit={handleSubmit} className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
             <label className="block text-sm font-medium text-slate-700">
               Kategori
-              <select value={categoryFilter} onChange={handleCategoryChange} className="mt-2 w-full rounded-lg border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus:border-amber-500 focus:ring-amber-500">
+              <select value={categoryFilter} onChange={handleCategoryChange} className="mt-2 w-full rounded-xl border-slate-200 bg-white px-3 py-2.5 text-slate-900 transition focus:border-blue-500 focus:ring-blue-500">
                 <option value="">Semua kategori</option>
                 {categories.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
@@ -295,11 +296,11 @@ const BacklogReport = () => {
                   role="combobox"
                   aria-expanded={showSkuOptions}
                   aria-controls="backlog-sku-options"
-                  className="w-full rounded-lg border-slate-300 py-2.5 pl-10 pr-3 text-slate-900 focus:border-amber-500 focus:ring-amber-500"
+                  className="w-full rounded-xl border-slate-200 py-2.5 pl-10 pr-3 text-slate-900 transition focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               {showSkuOptions && (
-                <div id="backlog-sku-options" role="listbox" className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
+                <div id="backlog-sku-options" role="listbox" className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-2xl border border-blue-100 bg-white py-1 shadow-2xl shadow-blue-100">
                   {filteredItems.length > 0 ? filteredItems.map((item) => (
                     <button
                       key={item.id}
@@ -310,7 +311,7 @@ const BacklogReport = () => {
                         event.preventDefault();
                         selectItem(item);
                       }}
-                      className="flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left hover:bg-amber-50"
+                      className="flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-blue-50"
                     >
                       <span className="min-w-0">
                         <span className="block font-semibold text-slate-900">{item.sku}</span>
@@ -330,13 +331,13 @@ const BacklogReport = () => {
               Tanggal
               <div className="relative mt-2">
                 <CalendarDays className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" />
-                <input name="transactionDate" type="date" value={form.transactionDate} readOnly className="w-full rounded-lg border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-slate-700" />
+                <input name="transactionDate" type="date" value={form.transactionDate} readOnly className="w-full rounded-xl border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-slate-700" />
               </div>
             </label>
 
             <label className="block text-sm font-medium text-slate-700">
               Qty Backlog <span className="text-red-500">*</span>
-              <input name="qty" type="number" min="1" step="1" value={form.qty} onChange={handleChange} required placeholder="Contoh: 120" className="mt-2 w-full rounded-lg border-slate-300 px-3 py-2.5 focus:border-amber-500 focus:ring-amber-500" />
+              <input name="qty" type="number" min="1" step="1" value={form.qty} onChange={handleChange} required placeholder="Contoh: 120" className="mt-2 w-full rounded-xl border-slate-200 px-3 py-2.5 transition focus:border-blue-500 focus:ring-blue-500" />
               {selectedItem?.uom && <span className="mt-1 block text-xs text-slate-500">UOM: {selectedItem.uom}</span>}
             </label>
 
@@ -344,17 +345,17 @@ const BacklogReport = () => {
               Tujuan Supply <span className="text-red-500">*</span>
               <div className="relative mt-2">
                 <MapPin className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" />
-                <input name="supplyDestination" value={form.supplyDestination} onChange={handleChange} required maxLength="150" placeholder="Contoh: Line Produksi 2 / Customer ABC" className="w-full rounded-lg border-slate-300 py-2.5 pl-10 pr-3 focus:border-amber-500 focus:ring-amber-500" />
+                <input name="supplyDestination" value={form.supplyDestination} onChange={handleChange} required maxLength="150" placeholder="Contoh: Line Produksi 2 / Customer ABC" className="w-full rounded-xl border-slate-200 py-2.5 pl-10 pr-3 transition focus:border-blue-500 focus:ring-blue-500" />
               </div>
             </label>
 
             <label className="block text-sm font-medium text-slate-700 sm:col-span-2 lg:col-span-3">
               Keterangan Backlog
-              <textarea name="notes" value={form.notes} onChange={handleChange} rows="3" maxLength="1000" placeholder="Tuliskan penyebab, prioritas, atau informasi tambahan backlog" className="mt-2 w-full rounded-lg border-slate-300 px-3 py-2.5 focus:border-amber-500 focus:ring-amber-500" />
+              <textarea name="notes" value={form.notes} onChange={handleChange} rows="3" maxLength="1000" placeholder="Tuliskan penyebab, prioritas, atau informasi tambahan backlog" className="mt-2 w-full rounded-xl border-slate-200 px-3 py-2.5 transition focus:border-blue-500 focus:ring-blue-500" />
             </label>
 
             <div className="sm:col-span-2 lg:col-span-3">
-              <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+              <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-cyan-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
                 {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <PackageCheck className="h-5 w-5" />}
                 {saving ? 'Menyimpan...' : 'Simpan Transaksi Backlog'}
               </button>
@@ -364,28 +365,28 @@ const BacklogReport = () => {
 
         <section className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">Transaksi</p><p className="mt-1 text-2xl font-bold text-slate-900">{records.length}</p></div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">Total Qty Backlog</p><p className="mt-1 text-2xl font-bold text-amber-700">{totalQty.toLocaleString('id-ID')}</p></div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">Tujuan Supply</p><p className="mt-1 text-2xl font-bold text-slate-900">{uniqueDestinations}</p></div>
+            <div className="wms-card-lift rounded-2xl border border-blue-100 bg-white/95 p-4 shadow-lg shadow-blue-100/40"><p className="text-sm text-slate-500">Transaksi</p><p className="mt-1 text-2xl font-bold text-slate-950">{records.length}</p></div>
+            <div className="wms-card-lift rounded-2xl border border-cyan-100 bg-white/95 p-4 shadow-lg shadow-cyan-100/40"><p className="text-sm text-slate-500">Total Qty Backlog</p><p className="mt-1 text-2xl font-bold text-blue-700">{totalQty.toLocaleString('id-ID')}</p></div>
+            <div className="wms-card-lift rounded-2xl border border-indigo-100 bg-white/95 p-4 shadow-lg shadow-indigo-100/40"><p className="text-sm text-slate-500">Tujuan Supply</p><p className="mt-1 text-2xl font-bold text-slate-950">{uniqueDestinations}</p></div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="wms-card-lift overflow-hidden rounded-3xl border border-blue-100/80 bg-white/95 shadow-xl shadow-blue-100/40">
+            <div className="flex flex-col gap-3 border-b border-blue-100/70 bg-gradient-to-r from-white to-blue-50/60 p-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Daftar Transaksi Backlog</h2>
                 <p className="text-sm text-slate-500">Laporan berdasarkan tanggal transaksi</p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <label className="text-xs font-medium text-slate-600">Tanggal laporan
-                  <input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="mt-1 block w-full rounded-lg border-slate-300 px-3 py-2 text-sm" />
+                  <input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="mt-1 block w-full rounded-xl border-slate-200 px-3 py-2 text-sm transition focus:border-blue-500 focus:ring-blue-500" />
                 </label>
-                <button onClick={handleDownload} className="mt-auto flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"><Download className="h-4 w-4" /> Excel</button>
+                <button onClick={handleDownload} className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-50"><Download className="h-4 w-4" /> Excel</button>
               </div>
             </div>
-            <div className="border-b border-slate-200 p-4">
+            <div className="border-b border-blue-100/70 p-4">
               <div className="relative max-w-md">
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari SKU, item, tujuan, atau keterangan..." className="w-full rounded-lg border-slate-300 py-2 pl-10 pr-3 text-sm focus:border-amber-500 focus:ring-amber-500" />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari SKU, item, tujuan, atau keterangan..." className="w-full rounded-xl border-slate-200 py-2 pl-10 pr-3 text-sm transition focus:border-blue-500 focus:ring-blue-500" />
               </div>
             </div>
 
@@ -401,7 +402,7 @@ const BacklogReport = () => {
                     {filteredRecords.map((record) => (
                       <tr key={record.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3"><p className="font-semibold text-slate-900">{record.sku}</p><p className="mt-0.5 max-w-xs text-sm text-slate-500">{record.item_name}</p></td>
-                        <td className="whitespace-nowrap px-4 py-3"><span className="rounded-full bg-amber-100 px-2.5 py-1 text-sm font-semibold text-amber-800">{Number(record.qty_backlog).toLocaleString('id-ID')} {record.uom || ''}</span></td>
+                        <td className="whitespace-nowrap px-4 py-3"><span className="rounded-full bg-blue-100 px-2.5 py-1 text-sm font-semibold text-blue-800">{Number(record.qty_backlog).toLocaleString('id-ID')} {record.uom || ''}</span></td>
                         <td className="px-4 py-3 text-sm text-slate-700">{record.supply_destination}</td>
                         <td className="max-w-sm px-4 py-3 text-sm text-slate-600">{record.backlog_notes || '—'}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-500">{new Date(record.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</td>

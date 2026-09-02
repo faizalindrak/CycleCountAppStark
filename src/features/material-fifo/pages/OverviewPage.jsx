@@ -53,12 +53,12 @@ const OverviewPage = (props) => {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map(({ label, value, key, icon: Icon, accent, iconBg }) => (
-          <Panel key={key} className="flex items-center justify-between p-4" ariaLabel={label}>
+          <Panel key={key} className="group flex items-center justify-between p-4" ariaLabel={label}>
             <div>
               <p className="text-xs font-medium text-slate-500">{label}</p>
               <p data-testid={`kpi-${key}`} className="mt-1 text-2xl font-bold tabular-nums text-slate-950">{value}</p>
             </div>
-            <span className={`rounded-xl p-2.5 ${iconBg} ${accent}`}><Icon className="h-5 w-5" /></span>
+            <span className={`rounded-2xl p-2.5 transition-transform duration-200 group-hover:scale-110 ${iconBg} ${accent}`}><Icon className="h-5 w-5" /></span>
           </Panel>
         ))}
       </div>

@@ -166,4 +166,85 @@
     background: #cbd5e1;
     border-radius: 9999px;
   }
+
+  .material-fifo-row {
+    opacity: 0;
+    animation: material-fifo-fade-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: center bottom;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+  }
+
+  .material-fifo-row:hover {
+    position: relative;
+    z-index: 1;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px -20px rgba(37, 99, 235, 0.7);
+  }
+
+  .material-fifo-row > td {
+    transition: background-color 180ms ease;
+  }
+
+  .material-fifo-row:hover > td {
+    background-color: rgba(239, 246, 255, 0.82);
+  }
+
+  @keyframes material-fifo-fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .material-fifo-row {
+      animation: none;
+      opacity: 1;
+      transition: none;
+    }
+  }
+
+  .wms-page-shell {
+    position: relative;
+    isolation: isolate;
+    min-height: 100vh;
+    overflow: hidden;
+    background: linear-gradient(135deg, #f8fbff 0%, #eff6ff 48%, #f8fafc 100%);
+  }
+
+  .wms-page-shell::before,
+  .admin-dashboard-shell::before {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    content: '';
+    opacity: 0.5;
+    background-image: linear-gradient(135deg, rgba(37, 99, 235, 0.07) 1px, transparent 1px), linear-gradient(45deg, rgba(14, 165, 233, 0.06) 1px, transparent 1px);
+    background-size: 34px 34px;
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 74%);
+  }
+
+  .wms-card-lift {
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+
+  .wms-card-lift:hover {
+    transform: translateY(-2px);
+    border-color: rgba(96, 165, 250, 0.55);
+    box-shadow: 0 18px 38px -26px rgba(30, 64, 175, 0.45);
+  }
+
+  .admin-dashboard-shell {
+    position: relative;
+    isolation: isolate;
+    min-height: 100vh;
+    overflow: hidden;
+    background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 48%, #f8fafc 100%);
+  }
+
+  .admin-dashboard-shell .admin-surface {
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 1.25rem;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 16px 42px -32px rgba(15, 23, 42, 0.55);
+  }
 }

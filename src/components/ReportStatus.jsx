@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, AlertTriangle, TrendingUp, Clock, CheckCircle, Edit, Download, Home, LogOut, LayoutList, LayoutGrid, QrCode, X, Menu, History, ClipboardList } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, BadgeCheck, CheckCircle, Clock, Download, Edit, Filter, History, Home, LayoutGrid, LayoutList, LogOut, Menu, Plus, QrCode, TrendingUp, X, ClipboardList, PackageCheck, Sparkles } from 'lucide-react';
 import StatusModal from './StatusModal';
 import StatusList from './StatusList';
 import BulkFollowUpModal from './BulkFollowUpModal';
@@ -530,68 +530,63 @@ const ReportStatus = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-3">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
-                <AlertTriangle className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Report Status Raw Mat</h1>
-                <p className="text-gray-600">Monitor and manage raw material inventory status</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-600 hidden sm:block">
-                Welcome, {user?.user_metadata?.name || user?.email}
-              </span>
-              <button
-                onClick={() => navigate('/home')}
-                className="text-blue-600 hover:text-blue-800"
-                title="Go to Home"
-              >
-                <Home className="h-5 w-5" />
-              </button>
-              <button
-                onClick={handleLogout}
-                className="text-red-600 hover:text-red-800 flex items-center space-x-1"
-                title="Logout"
-              >
-                <LogOut className="h-5 w-5" />
-                <span className="hidden sm:block">Logout</span>
-              </button>
-            </div>
+    <div data-testid="report-status-shell" className="relative min-h-screen overflow-hidden bg-[#f5f8ff] text-slate-900">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -left-32 -top-36 h-96 w-96 rounded-full bg-blue-200/45 blur-3xl" />
+        <div className="absolute -bottom-48 -right-28 h-[32rem] w-[32rem] rounded-full bg-indigo-200/35 blur-3xl" />
+        <PackageCheck className="absolute -right-24 top-24 h-[30rem] w-[30rem] rotate-12 text-blue-900/[0.035]" strokeWidth={1} />
+      </div>
+      <header className="relative border-b border-blue-100/80 bg-white/85 shadow-[0_8px_28px_rgba(37,99,235,0.06)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#215bea] text-white shadow-lg shadow-blue-200"><AlertTriangle aria-hidden="true" className="h-6 w-6" strokeWidth={1.8} /></div>
+            <div className="min-w-0"><p className="text-lg font-black tracking-[-0.04em] text-slate-950">WMS</p><p className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Warehouse Management System</p></div>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="hidden max-w-[180px] truncate text-sm font-medium text-slate-500 sm:block">{user?.user_metadata?.name || user?.email}</span>
+            <button type="button" onClick={() => navigate('/home')} aria-label="Kembali ke dashboard" className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-700 transition hover:-translate-y-0.5 hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100" title="Kembali ke dashboard"><Home aria-hidden="true" className="h-4 w-4" /></button>
+            <button type="button" onClick={handleLogout} aria-label="Keluar" className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-blue-100" title="Keluar"><LogOut aria-hidden="true" className="h-4 w-4" /><span className="hidden sm:block">Keluar</span></button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto pt-3 pb-8 sm:px-6 lg:px-8">
-        <div className="px-4 py-3 sm:px-0">
+      <main className="relative mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
+        <div className="sm:px-0">
+          <section className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+            <div>
+              <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.24em] text-blue-600"><Sparkles className="h-3.5 w-3.5" />Raw Material workspace</p>
+              <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Report Status Raw Material</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 sm:text-base">Pantau item kritis dan over, lalu tindak lanjuti laporan stok dari satu ruang kerja.</p>
+            </div>
+            <div className="flex w-fit items-center gap-3 rounded-2xl border border-blue-100 bg-white/80 px-4 py-3 shadow-sm"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><BadgeCheck className="h-5 w-5" /></span><div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mode laporan</p><p className="text-sm font-bold text-slate-800">Real-time monitoring</p></div></div>
+          </section>
+
           {/* Action Buttons + Date Filter */}
-          <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-3xl border border-blue-100/80 bg-white/75 p-3 shadow-[0_10px_28px_rgba(37,99,235,0.06)] backdrop-blur-sm">
             <button
+              type="button"
               onClick={() => handleAddStatus('kritis')}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center gap-2"
+              aria-label="Tambah Kritis"
+              className="group flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-red-700 hover:shadow-lg hover:shadow-red-200 focus:outline-none focus:ring-4 focus:ring-red-100"
             >
-              <Plus className="h-4 w-4" />
+              <Plus aria-hidden="true" className="h-4 w-4 transition-transform group-hover:rotate-90" />
               Kritis
             </button>
             <button
+              type="button"
               onClick={() => handleAddStatus('over')}
-              className="bg-purple-800 text-white px-4 py-2 rounded-md hover:bg-purple-900 flex items-center gap-2"
+              aria-label="Tambah Over"
+              className="group flex items-center gap-2 rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-indigo-800 hover:shadow-lg hover:shadow-indigo-200 focus:outline-none focus:ring-4 focus:ring-indigo-100"
             >
-              <Plus className="h-4 w-4" />
+              <Plus aria-hidden="true" className="h-4 w-4 transition-transform group-hover:rotate-90" />
               Over
             </button>
 
             {isMobileDevice() && (
               <button
+                type="button"
                 onClick={() => setShowScanModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+                className="flex items-center gap-2 rounded-xl bg-[#215bea] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
                 title="Scan QR Code"
               >
                 <QrCode className="h-4 w-4" />
@@ -602,8 +597,10 @@ const ReportStatus = () => {
             {/* Hamburger Menu */}
             <div className="relative" ref={menuRef}>
               <button
+                type="button"
+                aria-label="Buka menu laporan"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 flex items-center gap-2"
+                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-800 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-100"
                 title="Menu"
               >
                 <Menu className="h-5 w-5" />
@@ -612,13 +609,13 @@ const ReportStatus = () => {
 
               {/* Dropdown Menu */}
               {isMenuOpen && (
-                <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                <div role="menu" className="absolute left-0 z-50 mt-2 w-56 rounded-2xl border border-blue-100 bg-white p-2 shadow-xl shadow-slate-200/60">
                   <button
                     onClick={() => {
                       navigate('/history');
                       setIsMenuOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700"
                   >
                     <History className="h-4 w-4" />
                     History
@@ -628,7 +625,7 @@ const ReportStatus = () => {
                       navigate('/backlog');
                       setIsMenuOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700"
                   >
                     <ClipboardList className="h-4 w-4" />
                     Report Backlog
@@ -638,7 +635,7 @@ const ReportStatus = () => {
                       handleDownloadReport();
                       setIsMenuOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700"
                   >
                     <Download className="h-4 w-4" />
                     Download Report
@@ -647,17 +644,18 @@ const ReportStatus = () => {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
+              <Filter className="h-4 w-4 text-blue-600" />
               <input
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="bg-gray-100 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-200 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                aria-label="Filter tanggal laporan"
+                className="rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100"
               />
             </div>
             
             {/* View Toggle */}
-            <div className="flex items-center bg-gray-100 rounded-md p-1">
+            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1">
               <button
                 onClick={() => setViewMode('list')}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${

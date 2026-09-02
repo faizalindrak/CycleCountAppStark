@@ -310,26 +310,32 @@ const AdminDashboard = ({ user, signOut }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div data-testid="admin-dashboard-page" className="admin-dashboard-shell text-slate-900">
       {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+      <div className="sticky top-0 z-30 border-b border-blue-100/80 bg-white/90 shadow-sm backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-4 py-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-200"><Building className="h-5 w-5" /></span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600">Warehouse control</p>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-950">Admin Dashboard</h1>
+              </div>
+            </div>
             <div className="flex items-center space-x-4">
-              <span className="text-gray-600 hidden sm:block">
+              <span className="hidden rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 sm:block">
                 Welcome, {user?.user_metadata?.name || user?.email}
               </span>
               <button
                 onClick={() => navigate('/home')}
-                className="text-blue-600 hover:text-blue-800"
+                className="rounded-xl p-2 text-blue-600 transition hover:bg-blue-50 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 title="Go to Home"
               >
                 <Home className="h-5 w-5" />
               </button>
               <button
                 onClick={handleSignOut}
-                className="text-red-600 hover:text-red-800 flex items-center space-x-1"
+                className="flex items-center space-x-1 rounded-xl border border-red-100 bg-red-50/70 p-2 text-red-600 transition hover:bg-red-100 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-400"
                 title="Logout"
               >
                 <LogOut className="h-5 w-5" />
@@ -339,8 +345,8 @@ const AdminDashboard = ({ user, signOut }) => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-4 overflow-x-auto">
+          <div className="border-t border-blue-50">
+            <nav className="-mb-px flex gap-1 overflow-x-auto py-2">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -348,10 +354,10 @@ const AdminDashboard = ({ user, signOut }) => {
                   <Link
                     key={tab.id}
                     to={tab.path}
-                    className={`flex items-center gap-2 whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm ${
+                    className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                       isActive
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-200'
+                        : 'text-gray-500 hover:bg-blue-50 hover:text-blue-700'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -365,16 +371,16 @@ const AdminDashboard = ({ user, signOut }) => {
       </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="relative mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
         {error && (
-          <div className="mb-6 flex items-center p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          <div className="mb-6 flex items-center rounded-2xl border border-red-200 bg-red-50/90 p-4 text-red-700 shadow-sm">
             <AlertCircle className="h-4 w-4 mr-2" />
             {error}
           </div>
         )}
 
         {dataLoading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="admin-surface flex items-center justify-center py-14">
             <div className="spinner"></div>
             <span className="ml-2 text-gray-600">Loading dashboard data...</span>
           </div>
@@ -603,7 +609,7 @@ const SessionsManager = React.memo(({ sessions, setSessions, onDataChange }) => 
         </button>
       </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
+      <div className="admin-surface wms-card-lift overflow-hidden">
         <ul className="divide-y divide-gray-200">
           {sessions.map((session) => (
             <li key={session.id} className="px-6 py-4">
@@ -856,14 +862,14 @@ const ItemGroupsManager = React.memo(({ itemGroups, setItemGroups, items, onData
       </div>
 
       {filteredGroups.length === 0 ? (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md p-6 text-center">
+        <div className="admin-surface wms-card-lift p-6 text-center">
           <Layers className="h-12 w-12 text-gray-400 mx-auto mb-3" />
           <p className="text-gray-500">
             {searchTerm ? 'No item groups found matching your search.' : 'No item groups yet. Create one to get started!'}
           </p>
         </div>
       ) : (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <div className="admin-surface wms-card-lift overflow-hidden">
           <ul className="divide-y divide-gray-200">
             {filteredGroups.map((group) => (
               <li key={group.id} className="px-6 py-4">
@@ -1361,7 +1367,7 @@ const ItemsManager = React.memo(({ items, setItems, categories, setCategories, o
   // Loading is now handled by parent component
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
+    <div className="admin-surface wms-card-lift p-5">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-semibold">Manage Items</h3>
         <div className="flex space-x-2">
@@ -1876,7 +1882,7 @@ const UsersManager = React.memo(({ users, setUsers, onDataChange }) => {
   // Loading is now handled by parent component
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
+    <div className="admin-surface wms-card-lift p-5">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-semibold">Manage Users</h3>
         <button
@@ -2277,7 +2283,7 @@ const CategoryForm = ({ onSubmit }) => {
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow mb-6">
+    <div className="admin-surface wms-card-lift mb-6 p-5">
       <h3 className="text-lg font-semibold mb-3">Add New Category</h3>
       <form onSubmit={handleSubmit} className="flex gap-3">
         <input
@@ -2312,7 +2318,7 @@ const LocationForm = ({ categories, onSubmit }) => {
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow mb-6">
+    <div className="admin-surface wms-card-lift mb-6 p-5">
       <h3 className="text-lg font-semibold mb-3">Add New Location</h3>
       <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
         <select
