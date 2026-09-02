@@ -1,4 +1,4 @@
-const CACHE_NAME = 'warehouse-app-shell-v2';
+const CACHE_NAME = 'warehouse-app-shell-v3';
 const APP_SHELL = [
   '/', '/index.html', '/manifest.webmanifest',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-512-maskable.png',

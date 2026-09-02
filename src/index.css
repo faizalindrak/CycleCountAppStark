@@ -61,6 +61,74 @@
   }
 }
 
+html.dark body {
+  background: #0b1220;
+  color: #e2e8f0;
+}
+
+html.dark .bg-gray-100,
+html.dark .bg-slate-100,
+html.dark .bg-\[\#f7f8fa\] {
+  background-color: #0b1220 !important;
+}
+
+html.dark [class*="bg-white"] {
+  background-color: #111827 !important;
+}
+
+html.dark [class*="text-slate-950"],
+html.dark [class*="text-slate-900"],
+html.dark [class*="text-gray-900"] {
+  color: #f8fafc !important;
+}
+
+html.dark [class*="text-slate-800"],
+html.dark [class*="text-slate-700"],
+html.dark [class*="text-gray-700"],
+html.dark [class*="text-gray-600"] {
+  color: #cbd5e1 !important;
+}
+
+html.dark [class*="text-slate-500"],
+html.dark [class*="text-slate-400"],
+html.dark [class*="text-gray-500"] {
+  color: #94a3b8 !important;
+}
+
+html.dark [class*="border-slate-200"],
+html.dark [class*="border-slate-100"],
+html.dark [class*="border-gray-200"],
+html.dark [class*="border-gray-300"] {
+  border-color: #334155 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  border-color: #334155;
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b;
+}
+
+html.dark .wms-page-shell,
+html.dark .admin-dashboard-shell {
+  background: linear-gradient(135deg, #0b1220 0%, #111827 52%, #0f172a 100%);
+}
+
+html.dark .wms-page-shell::before,
+html.dark .admin-dashboard-shell::before {
+  opacity: 0.18;
+}
+
+html.dark .material-fifo-row:hover > td {
+  background-color: rgba(30, 58, 138, 0.35);
+}
+
 @layer base {
   * {
     @apply border-border;

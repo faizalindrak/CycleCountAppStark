@@ -11,6 +11,7 @@ import ReportStatus from './components/ReportStatus';
 import HistoryPage from './components/HistoryPage';
 import BacklogReport from './components/BacklogReport';
 import MaterialFifoPage from './features/material-fifo/MaterialFifoPage';
+import ThemeToggle from './components/ThemeToggle';
 
 // Protected Route component for authenticated users
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -52,6 +53,7 @@ const App = () => {
   return (
     <Router>
       <div className="App">
+        <ThemeToggle />
         <Routes>
           {/* Public route - Login page */}
           <Route
