@@ -205,6 +205,40 @@ export async function fetchItemsBySku(skus = []) {
 }
 
 /**
+ * Ambil total sisa stok aktif untuk suatu item di Supabase.
+ */
+export async function fetchCurrentItemStock(itemId) {
+  const { data, error } = await supabase
+    .from('material_fifo_lots')
+    .select('remaining_qty')
+    .eq('item_id', itemId)
+    .gt('remaining_qty', 0);
+  throwIfError(error);
+  const total = (data ?? []).reduce((sum, lot) => sum + (Number(lot.remaining_qty) || 0), 0);
+  return Math.round(total * 10000) / 10000;
+}
+
+/**
+ * Kosongkan semua sisa stok aktif untuk item tertentu menggunakan issueMaterial (FIFO).
+ * Mengembalikan total qty yang berhasil dikosongkan.
+ */
+export async function resetItemLots(itemId, notes = 'Ganti stok dari Google Sheet') {
+  const currentStock = await fetchCurrentItemStock(itemId);
+  if (currentStock > 0) {
+    await issueMaterial({
+      itemId,
+      quantity: String(currentStock),
+      issueMethod: 'FIFO',
+      location: null,
+      transactionDate: new Date().toISOString().slice(0, 10),
+      notes,
+      requestId: crypto.randomUUID(),
+    });
+  }
+  return currentStock;
+}
+
+/**
  * Ambil lot aktif berdasarkan item_id, dipakai untuk cek apakah
  * lokasi tertentu sudah ada di Supabase sebelum receive_material_fifo.
  * Mengembalikan Set lokasi (uppercase) yang masih punya remaining_qty > 0.

@@ -21,6 +21,7 @@ import {
   createRawMaterialItem,
   upsertFifoSettings,
   receiveMaterial,
+  resetItemLots,
 } from '../api/materialFifoApi';
 import { parseMigrationSheet } from '../lib/parseMigrationSheet';
 import {
@@ -122,8 +123,8 @@ const MigrationPage = () => {
   // Expand state per item di preview
   const [expandedSkus, setExpandedSkus] = useState(new Set());
 
-  // Process mode: 'skip' | 'reset'
-  const [processMode, setProcessMode] = useState('skip');
+  // Process mode: 'replace' (default/sync) | 'append' | 'skip'
+  const [processMode, setProcessMode] = useState('replace');
   const [resetConfirmed, setResetConfirmed] = useState(false);
 
   // Process results: Map<sku, {status, message, lotsOk, lotsFail}>
@@ -201,7 +202,6 @@ const MigrationPage = () => {
   // ── Proses migrasi ─────────────────────────────────────────────────────────
   const runMigration = async () => {
     if (!parsed?.validItems.length || processRunning) return;
-    if (processMode === 'reset' && !resetConfirmed) return;
 
     setProcessRunning(true);
     setResults(new Map());
@@ -247,14 +247,26 @@ const MigrationPage = () => {
         let lotsFail = 0;
         const lotDetails = [];
 
+        // Mode REPLACE: Kosongkan stok lama terlebih dahulu sebelum input lot baru
+        if (processMode === 'replace' && !item.isNew) {
+          try {
+            const clearedStock = await resetItemLots(itemId, 'Ganti stok dari Google Sheet');
+            if (clearedStock > 0) {
+              lotDetails.push({ loc: 'RESET', status: PROC.DONE, message: `Stok lama (${clearedStock} ${item.uom}) dikosongkan` });
+            }
+          } catch (resetErr) {
+            throw new Error(`Gagal mengosongkan stok lama: ${resetErr.message}`);
+          }
+        }
+
         if (item.lots.length > 0) {
-          // Ambil lokasi yang sudah ada di Supabase
-          const existingLocs = await fetchActiveLotLocations(itemId);
+          // Ambil lokasi yang sudah ada (hanya jika mode skip)
+          const existingLocs = processMode === 'skip' ? await fetchActiveLotLocations(itemId) : new Set();
 
           for (const lot of item.lots) {
             const locUpper = lot.loc.toUpperCase();
             if (processMode === 'skip' && existingLocs.has(locUpper)) {
-              lotDetails.push({ loc: lot.loc, status: PROC.SKIPPED, message: 'Sudah ada, dilewati' });
+              lotDetails.push({ loc: lot.loc, status: PROC.SKIPPED, message: 'Sudah ada di rak, dilewati' });
               continue;
             }
             try {
@@ -277,7 +289,11 @@ const MigrationPage = () => {
 
         newResults.set(item.sku, {
           status: PROC.DONE,
-          message: item.isNew ? 'SKU baru berhasil dibuat' : 'SKU sudah ada, data diperbarui',
+          message: item.isNew
+            ? 'SKU baru berhasil dibuat'
+            : processMode === 'replace'
+            ? 'Data stok berhasil diganti'
+            : 'SKU sudah ada, data diperbarui',
           lotsOk,
           lotsFail,
           lotDetails,
@@ -307,7 +323,7 @@ const MigrationPage = () => {
     setResults(new Map());
     setSourceError('');
     setSheetUrl('');
-    setProcessMode('skip');
+    setProcessMode('replace');
     setResetConfirmed(false);
     setProcessProgress({ done: 0, total: 0 });
     if (fileRef.current) fileRef.current.value = '';
@@ -551,11 +567,12 @@ const MigrationPage = () => {
           {/* Opsi proses */}
           {parsed.validItems.length > 0 && (
             <Panel ariaLabel="Opsi migrasi" className="space-y-4 p-5">
-              <SectionTitle>Opsi migrasi</SectionTitle>
+              <SectionTitle>Opsi sinkronisasi stok</SectionTitle>
               <div className="space-y-2">
                 {[
-                  ['skip', 'Skip existing', 'Kalau SKU sudah ada di Supabase, lot yang lokasinya sudah ada akan dilewati. Aman untuk dijalankan berulang.'],
-                  ['reset', 'Reset lots', 'Semua lot aktif SKU yang sudah ada di Supabase akan ditimpa dengan data dari Google Sheet. Gunakan ini untuk sinkronisasi penuh.'],
+                  ['replace', 'Ganti Stok (Replace / Sync) — Direkomendasikan', 'Sisa stok lama untuk SKU ini di Supabase akan dikosongkan dan digantikan dengan data lot terkini dari file. Rak lama yang sudah tidak ada di file akan dihapus, sehingga stok sama persis dengan file.'],
+                  ['append', 'Tambah Stok (Append)', 'Lot baru dari file akan ditambahkan ke rak yang sudah ada di Supabase tanpa menghapus lot lama (menambah total stok).'],
+                  ['skip', 'Lewati jika rak sudah terisi (Skip)', 'Jika lokasi rak sudah ada stok aktif di Supabase, lot baru untuk lokasi tersebut akan dilewati.'],
                 ].map(([val, label, desc]) => (
                   <label key={val} className={`flex cursor-pointer gap-3 rounded-xl border p-3.5 transition ${processMode === val ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                     <input
@@ -563,7 +580,7 @@ const MigrationPage = () => {
                       name="processMode"
                       value={val}
                       checked={processMode === val}
-                      onChange={() => { setProcessMode(val); setResetConfirmed(false); }}
+                      onChange={() => setProcessMode(val)}
                       className="mt-0.5 accent-blue-600"
                     />
                     <div>
@@ -574,28 +591,11 @@ const MigrationPage = () => {
                 ))}
               </div>
 
-              {processMode === 'reset' && (
-                <Alert type="warning">
-                  <label className="flex cursor-pointer items-start gap-2">
-                    <input
-                      type="checkbox"
-                      checked={resetConfirmed}
-                      onChange={(e) => setResetConfirmed(e.target.checked)}
-                      className="mt-0.5 accent-amber-600"
-                    />
-                    <span>
-                      Saya mengerti bahwa mode <strong>Reset</strong> akan menghapus lot-lot aktif yang sudah ada
-                      di Supabase untuk SKU yang diimport, dan menggantinya dengan data dari Google Sheet.
-                    </span>
-                  </label>
-                </Alert>
-              )}
-
               <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={runMigration}
-                  disabled={processMode === 'reset' && !resetConfirmed}
+                  disabled={processRunning}
                   className={primaryButtonClass}
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5" />
