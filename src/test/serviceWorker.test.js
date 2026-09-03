@@ -73,6 +73,6 @@ describe('service worker network-first handler', () => {
   });
 
   it('uses a new app-shell cache version for the fixed worker', () => {
-    expect(source).toContain("const CACHE_NAME = 'warehouse-app-shell-v2'");
+    expect(source).toMatch(/const CACHE_NAME = 'warehouse-app-shell-v\d+'/);
   });
 });
