@@ -117,3 +117,104 @@ export const createRawMaterialItem = (input) => callRpc('create_raw_material_ite
   p_item_name: input.itemName,
   p_uom: input.uom,
 });
+
+/**
+ * Fetch published Google Sheet sebagai CSV.
+ * Sheet harus sudah di-publish via File > Share > Publish to web (format CSV).
+ * URL biasanya: https://docs.google.com/spreadsheets/d/SHEET_ID/export?format=csv&gid=SHEET_GID
+ * atau URL publish langsung dari Google Sheets.
+ *
+ * Mengembalikan array of arrays (rows x cols), termasuk baris header.
+ */
+export async function fetchSheetCsv(url) {
+  const cleanUrl = String(url).trim();
+  if (!cleanUrl) throw new Error('URL Google Sheet tidak boleh kosong.');
+
+  // Ubah URL share biasa ke format export CSV kalau perlu
+  let fetchUrl = cleanUrl;
+  const spreadsheetMatch = cleanUrl.match(
+    /docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]+)(?:\/.*gid=(\d+))?/
+  );
+  if (spreadsheetMatch) {
+    const sheetId = spreadsheetMatch[1];
+    const gid = spreadsheetMatch[2] || '0';
+    fetchUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(fetchUrl);
+  } catch {
+    throw new Error('Tidak dapat terhubung ke Google Sheet. Pastikan koneksi internet aktif.');
+  }
+  if (!response.ok) {
+    throw new Error(
+      `Gagal mengambil data dari Google Sheet (HTTP ${response.status}). ` +
+      'Pastikan sheet sudah di-publish sebagai CSV (File → Share → Publish to web).'
+    );
+  }
+
+  const text = await response.text();
+  if (!text.trim()) throw new Error('Google Sheet kosong atau tidak ada data.');
+
+  // Parse CSV sederhana — mendukung field yang dikutip
+  return parseCsv(text);
+}
+
+/** Minimal CSV parser yang mendukung quoted fields dengan koma di dalamnya. */
+function parseCsv(text) {
+  const rows = [];
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = [];
+    let inQuote = false;
+    let cell = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cell += '"'; i++; }
+        else inQuote = !inQuote;
+      } else if (ch === ',' && !inQuote) {
+        cols.push(cell.trim());
+        cell = '';
+      } else {
+        cell += ch;
+      }
+    }
+    cols.push(cell.trim());
+    rows.push(cols);
+  }
+  return rows;
+}
+
+/**
+ * Ambil item-item dari Supabase berdasarkan daftar SKU.
+ * Berguna untuk cek SKU mana yang sudah terdaftar sebelum migrasi.
+ * Mengembalikan Map { SKU_UPPERCASE -> item_object }.
+ */
+export async function fetchItemsBySku(skus = []) {
+  const unique = [...new Set(skus.filter(Boolean).map((s) => String(s).trim().toUpperCase()))];
+  if (!unique.length) return new Map();
+  const { data, error } = await supabase
+    .from('items')
+    .select('id, sku, item_name, item_code, internal_product_code, uom, category')
+    .in('sku', unique);
+  throwIfError(error);
+  return new Map((data ?? []).map((item) => [item.sku.toUpperCase(), item]));
+}
+
+/**
+ * Ambil lot aktif berdasarkan item_id, dipakai untuk cek apakah
+ * lokasi tertentu sudah ada di Supabase sebelum receive_material_fifo.
+ * Mengembalikan Set lokasi (uppercase) yang masih punya remaining_qty > 0.
+ */
+export async function fetchActiveLotLocations(itemId) {
+  const { data, error } = await supabase
+    .from('material_fifo_lots')
+    .select('location')
+    .eq('item_id', itemId)
+    .gt('remaining_qty', 0);
+  throwIfError(error);
+  return new Set((data ?? []).map((l) => l.location.toUpperCase()));
+}

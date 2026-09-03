@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Menu, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Menu, MoveRight, X } from 'lucide-react';
 
 const links = [
   ['overview', 'Overview'], ['data', 'Data FIFO'], ['transactions', 'Transaksi'],
@@ -19,6 +19,13 @@ const MaterialFifoLayout = ({ context, openInbound, openOutbound, lastRefresh })
 
   const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
   const refreshLabel = lastRefresh ? ` · Diperbarui ${lastRefresh.toLocaleTimeString('id-ID')}` : '';
+
+  const navLinkClass = ({ isActive }) =>
+    `block rounded-xl px-3 py-2.5 text-[13px] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+      isActive
+        ? 'bg-gradient-to-r from-blue-50 to-cyan-50 font-semibold text-blue-700 shadow-sm'
+        : 'text-slate-600 hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-900'
+    }`;
 
   const sidebar = (mobile = false) => (
     <div className="flex h-full flex-col">
@@ -42,11 +49,29 @@ const MaterialFifoLayout = ({ context, openInbound, openOutbound, lastRefresh })
             key={to}
             to={`/material-fifo/${to}`}
             onClick={() => setOpen(false)}
-            className={({ isActive }) => `block rounded-xl px-3 py-2.5 text-[13px] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${isActive ? 'bg-gradient-to-r from-blue-50 to-cyan-50 font-semibold text-blue-700 shadow-sm' : 'text-slate-600 hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-900'}`}
+            className={navLinkClass}
           >
             {label}
           </NavLink>
         ))}
+
+        {/* Divider + link migrasi */}
+        <div className="my-3 border-t border-slate-100" />
+        <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Utilitas</p>
+        <NavLink
+          to="/material-fifo/migrate"
+          onClick={() => setOpen(false)}
+          className={({ isActive }) =>
+            `flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              isActive
+                ? 'bg-gradient-to-r from-blue-50 to-cyan-50 font-semibold text-blue-700 shadow-sm'
+                : 'text-slate-500 hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-700'
+            }`
+          }
+        >
+          <MoveRight className="h-3.5 w-3.5 shrink-0" />
+          Migrasi dari Sheet
+        </NavLink>
       </nav>
       <div className="px-3 pb-4">
         <button type="button" onClick={() => navigate('/home')} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
